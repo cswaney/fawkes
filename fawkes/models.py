@@ -263,15 +263,15 @@ class NetworkPoisson():
     def plot_data(self, data):
         """Plot intensity with events by node."""
         times, nodes = data
-        T = len(times)
+        T = np.ceil(np.max(times))
         grid = np.linspace(0, T, 1000)
-        I_grid = np.array([model.compute_intensity(data, t) for t in grid]).transpose()  # n x (T/N + 1)
-        I_times = np.array([model.compute_intensity(data, t) for t in times]).transpose()  # n x M
+        I_grid = np.array([self.compute_intensity(data, t) for t in grid]).transpose()  # n x (T/N + 1)
+        I_times = np.array([self.compute_intensity(data, t) for t in times]).transpose()  # n x M
         for n in np.unique(nodes):
-            plt.subplot(self.N, 1, n + 1)
+            # plt.subplot(self.N, 1, n + 1)
             t = grid
             f_grid = I_grid[n,:]
-            plt.plot(t, f_grid)
+            plt.plot(t, f_grid, alpha=0.2)
             t = times[ nodes == n ]
             f_times = I_times[n,:][ nodes == n ]
             plt.scatter(t, f_times)
@@ -279,6 +279,28 @@ class NetworkPoisson():
             plt.xlim([0, T])
         plt.show()
         plt.clf()
+
+    def plot_impulse(self, mu=None, tau=None):
+
+            if mu is None:
+                mu = self.mu[0, 0]
+            if tau is None:
+                tau = self.tau[0, 0]
+
+            """mu and tau can be scalar or matirx/vector"""
+            def impulse(dt):
+                out = np.zeros(dt.shape)
+                dt_ = dt[ (dt > 0) & (dt < self.dt_max) ]
+                Z = dt_ * (self.dt_max - dt_) / self.dt_max * (tau / (2 * np.pi)) ** (-0.5)
+                x = dt_ / self.dt_max
+                s = np.log(x / (1 - x))
+                out[ (dt > 0 ) & (dt < self.dt_max) ] = (1 / Z) * np.exp( -tau / 2 * (s - mu) ** 2 )
+                return out
+
+            plt.plot(np.linspace(0, self.dt_max, 100), impulse(np.linspace(0, self.dt_max, 100)))
+            plt.title("Impulse Response: mu={:.2f}, tau={:.2f}".format(mu, tau))
+            plt.show()
+            plt.close()
 
     # TODO: vectorize and/or parallelize.
     def compute_intensity(self, data, t):
@@ -545,7 +567,7 @@ class DiscreteNetworkPoisson():
             """
 
             mu = np.linspace(1, L, B + 2)[1:-1]
-            phi = np.empty((L + 1,B))
+            phi = np.empty((L + 1, B))
             for b in range(B):
                 for l in range(L + 1):
                     if l == 0:
@@ -600,12 +622,14 @@ class DiscreteNetworkPoisson():
             lamb[:, n] = lambda0[n] + np.dot(gamma, w_)
         return lamb
 
-    def plot_basis(self, parent=0, child=0, mean=False):
+    def plot_basis(self, parent=0, child=0, theta=None, mean=False):
+        if theta is None:
+            theta = self.theta
         p, c = parent, child
         L, B = self.phi.shape
         if mean:
-            plt.scatter(np.arange(1, L), np.dot(self.phi, self.theta[:, p, c])[1:])
-            plt.plot(np.arange(1, L), np.dot(self.phi, self.theta[:, p, c])[1:])
+            plt.scatter(np.arange(1, L), np.dot(self.phi, theta[:, p, c])[1:])
+            plt.plot(np.arange(1, L), np.dot(self.phi, theta[:, p, c])[1:])
         # else:
         for b in np.arange(B):
             plt.scatter(np.arange(1, L), self.phi[1:,b], alpha=0.15)
@@ -792,7 +816,7 @@ class DiscreteNetworkPoisson():
         start = time.time()
         sub_start = start
         for i in range(size):
-            if i % (size / 10) == 0 and i > 0:
+            if i % (size / 100) == 0 and i > 0:
                 sub_stop = time.time()
                 print("step={}, time={:.2f} s ({:.2f} s subtime)".format(i, sub_stop - start, sub_stop - sub_start))
                 sub_start = sub_stop

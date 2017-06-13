@@ -447,8 +447,10 @@ class NetworkPoisson():
             print('M_nm={}'.format(M_nm))
             print('xbar_nm={}'.format(xbar_nm))
             print('nu_nm={}'.format(nu_nm))
-        xbar_nm[ xbar_nm == 0 ] = np.random.choice((-0.1, 0.1))
-        nu_nm[ nu_nm == 0 ] = np.random.choice((-0.1, 0.1))
+        # xbar_nm[ xbar_nm == 0 ] = np.random.choice((-0.1, 0.1))
+        # nu_nm[ nu_nm == 0 ] = np.random.choice((-0.1, 0.1))
+        xbar_nm[ xbar_nm == 0 ] = 0.1
+        nu_nm[ nu_nm == 0 ] = 0.1
 
         # calculate posterior parameters
         alpha_0 = self.alpha_0 + M_0
