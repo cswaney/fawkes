@@ -78,7 +78,7 @@ def simulate(lambda0, W, theta):
     # Cython Gibbs
     lambda0_, W_, theta_ = net.sample_ext(S, size=samples)
     # lambda0_, W_, theta_ = net.sample(S, size=samples)
-    plot_sample(lambda0_, W_, theta_, burn=burn)
+    # plot_sample(lambda0_, W_, theta_, burn=burn)
     theta_map = np.median(theta_[:, :, :, burn:], axis=3)
     net.plot_basis(theta=theta_map, mean=True)
 
@@ -89,7 +89,30 @@ B = 3
 L = 60
 dt = 1
 T = 10000
-samples = 10
+samples = 100
+burn = 100
+skip = 0
+
+# Low frequency data
+lambda0 = 0.1 * np.ones(N)
+W = 0.05 * np.diag(np.ones(N))
+theta = (1 / B) * np.ones((B, N, N))
+simulate(lambda0, W, theta)
+
+# High frequency data
+lambda0 = 1.0 * np.ones(N)
+W = 0.5 * np.diag(np.ones(N))
+theta = (1 / B) * np.ones((B, N, N))
+simulate(lambda0, W, theta)
+
+
+# Settings
+N = 2
+B = 10
+L = 10
+dt = 1
+T = 10000
+samples = 100
 burn = 100
 skip = 0
 

@@ -317,7 +317,7 @@ class NetworkPoisson():
         for i in range(len(diffs)):
             m = nodes[i]
             dt = diffs[i]
-            lamb += self.A[m,:] * self.W[m,:] * self.impulse(dt)[m,:]
+            lamb += self.W[m,:] * self.impulse(dt)[m,:]
         return lamb
 
     # TODO: check
