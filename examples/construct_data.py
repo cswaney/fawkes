@@ -4,9 +4,7 @@ import numpy as np
 import time
 import os
 
-"""
-This script constructs event data that we can feed to the continuous-time Gibbs sampler.
-"""
+"""This script constructs event data that we can feed to the continuous-time Gibbs sampler."""
 
 import_path = "/Volumes/datasets/ITCH/hdf5/"
 export_path = "/Volumes/datasets/ITCH/events/"
@@ -180,9 +178,7 @@ def get_events(messages, books):
     return pd.DataFrame(np.array(data), columns=['timestamp', 'type'])
 
 def export_data(events, date, name):
-    """
-        Overwrite the datasets if they already exists.
-    """
+    """Overwrite the datasets if they already exists."""
     with h5.File(export_path + 'events.hdf5', 'a') as hdf:
         try:
             hdf.create_dataset(name='{}/{}'.format(name, date), data=events)

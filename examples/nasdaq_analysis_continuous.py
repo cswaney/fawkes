@@ -80,18 +80,24 @@ def calculate_inhomogeneous(lambda0):
     return np.median(lambda0, axis=1)
 
 # TODO
-def print_table(data, decimals=2, sep=" "):
+def print_table(data, lower, upper, decimals=2, sep=" "):
     """Create a table from a two-dimensional array."""
     N, M = data.shape
-    for i in range(N):
-
+    for i in range(2 * N):
         for j in range(M):
-            d = data[i,j]
-            if j < M - 1:
-                print('{:.{}f}{}&'.format(d, decimals, sep), end=sep)
+            if i % 2 == 0:
+                d = data[int(i / 2), j]
+                if j < M - 1:
+                    print('{:.{}f}{}&'.format(d, decimals, sep), end=sep)
+                else:
+                    print('{:.{}f}'.format(d, decimals), end='\n')
             else:
-                print('{:.{}f}'.format(d, decimals), end='\n')
-
+                l = lower[int(i / 2), j]
+                u = upper[int(i / 2), j]
+                if j < M - 1:
+                    print('({:.{}f} {:.{}f}){}&'.format(l, 2, u, 2, sep), end=sep)
+                else:
+                    print('({:.{}f}, {:.{}f})'.format(l, 2, u, 2), end='\n')
 
 def construct_table(lambda0, W, mu, tau):
     pass
@@ -119,9 +125,8 @@ def plot_bias(lambda0, path):
     plt.subplot(3, 2, 6)
     plot_pair(lambda0[10,:], lambda0[11,:], 'EXECUTES', [0.015, 0.025])
     plt.tight_layout()
-    plt.savefig(path + 'bias.eps')
-    plt.savefig(path + 'bias.pdf')
-    plt.show()
+    plt.savefig(path + 'bias_{}.pdf'.format(name))
+    # plt.show()
     plt.clf()
 
 def plot_self_connections(W, path):
@@ -150,9 +155,8 @@ def plot_self_connections(W, path):
     plt.subplot(3, 2, 6)
     plot_pair(diagonal[10,:], diagonal[11,:], 'EXECUTES', [0.015, 0.025])
     plt.tight_layout()
-    plt.savefig(path + 'diagonal.eps')
-    plt.savefig(path + 'diagonal.pdf')
-    plt.show()
+    plt.savefig(path + 'weights_{}.pdf'.format(name))
+    # plt.show()
     plt.clf()
 
 def plot_weights(W, vrange, path, ext=None, cmap=None):
@@ -181,9 +185,8 @@ def plot_weights(W, vrange, path, ext=None, cmap=None):
     plt.ylabel("Parent nodes", labelpad=20, fontsize=8)
     plt.yticks(np.arange(0, 12), tick_labels, fontsize=8)
     plt.tight_layout()
-    plt.savefig(path + 'weights{}.eps'.format(ext))
-    plt.savefig(path + 'weights{}.pdf'.format(ext))
-    plt.show()
+    plt.savefig(path + 'weights{}_{}.pdf'.format(ext, name))
+    # plt.show()
     plt.clf()
 
 def logit_normal(dt, mu, tau, dt_max):
@@ -194,74 +197,55 @@ def logit_normal(dt, mu, tau, dt_max):
     s = np.log(x / (1 - x))
     return (1 / Z) * np.exp( -tau / 2 * (s - mu) ** 2 )
 
-def plot_impulses_1(W, mu, tau, dt_max, x_max, path, ext=None):
-
-    def plot_impulse(parent, child, W, mu, tau, dt_max):
-        eps = 0.1
-        assert x_max < dt_max, "xmax should be less than dt_max"
-        dt = np.linspace(0 + eps, x_max, 100)
-        values = logit_normal(dt, mu[parent, child], tau[parent, child], dt_max)
-        plt.plot(dt, values, linewidth=0.5, color='C0', alpha=W)
-        plt.xlim([0, dt_max])
-        plt.yticks([])
-        plt.xticks([])
-        plt.axis('off')
-
+def plot_impulses(W, mu, tau, dt_max, x_min, x_max, path, ext=None, thresh=None):
 
     if ext is None:
         ext = ''
 
-    N, M = W.shape
-    for i in range(N):
-        for j in range(M):
-            plt.subplot(N, M, i * M + j + 1)
-            plot_impulse(i, j, np.minimum(W[i, j], 1), mu, tau, dt_max)
-    plt.savefig(path + 'impulse{}.eps'.format(ext))
-    plt.savefig(path + 'impulse{}.pdf'.format(ext))
-    plt.show()
-    plt.clf()
+    if thresh is not None:
 
-def plot_impulses_2(W, mu, tau, dt_max, x_max, path, ext=None):
+        def plot_impulse(parent, child, mu, tau, dt_max):
+            assert x_max < dt_max, "xmax should be less than dt_max"
+            dt = np.linspace(x_min, x_max, 100)
+            values = logit_normal(dt, mu[parent, child], tau[parent, child], dt_max)
+            plt.plot(dt, values, linewidth=0.5, color='C0')
+            plt.xlim([x_min, x_max])
+            plt.yticks([])
+            plt.xticks([])
+            plt.axis('off')
 
-    # blue = (1 - np.exp(np.linspace(0, 3, 101) - 3)).reshape((101, 1))
-    blue = np.linspace(1, 0, 21).reshape((21,1))
-    blues = np.concatenate((blue, blue, np.ones((21, 1))), axis=1)
-    colors = blues
-    W_min = np.min(W)
-    W_max = np.max(W)
-    print("(W_min={}, W_max={})".format(W_min, W_max))
+        N, M = W.shape
+        for i in range(N):
+            for j in range(M):
+                if W[i, j] > thresh:
+                    plt.subplot(N, M, i * M + j + 1)
+                    plot_impulse(i, j, mu, tau, dt_max)
+        plt.savefig(path + 'impulses{}_{}.png'.format(ext, name))
+        plt.show()
+        plt.clf()
 
-    def plot_impulse(parent, child, W, mu, tau, dt_max):
-        eps = 0.1
-        assert x_max < dt_max, "xmax should be less than dt_max"
-        dt = np.linspace(0 + eps, x_max, 100)
-        values = logit_normal(dt, mu[parent, child], tau[parent, child], dt_max)
+    elif thresh is None:
 
-        w = np.int((W - W_min) / (W_max - W_min) * (colors.shape[0] - 1))
-        print("W={} (w={})".format(W, w))
-        color = colors[w, :]
-        plt.plot(dt, values, linewidth=0.5, color=color)
+        A = W
 
-        # plt.plot(dt, values, linewidth=0.5, color='C0', alpha=W)
-        plt.xlim([0, dt_max])
-        plt.yticks([])
-        plt.xticks([])
-        plt.axis('off')
+        def plot_impulse(parent, child, mu, tau, dt_max, alpha):
+            assert x_max < dt_max, "xmax should be less than dt_max"
+            dt = np.linspace(x_min, x_max, 100)
+            values = logit_normal(dt, mu[parent, child], tau[parent, child], dt_max)
+            plt.plot(dt, values, linewidth=0.5, color='C0', alpha=np.minimum(1, alpha))
+            plt.xlim([x_min, x_max])
+            plt.yticks([])
+            plt.xticks([])
+            plt.axis('off')
 
-
-    if ext is None:
-        ext = ''
-
-    N, M = W.shape
-    for i in range(N):
-        for j in range(M):
-            plt.subplot(N, M, i * M + j + 1)
-            plot_impulse(i, j, W[i, j], mu, tau, dt_max)
-            # plot_impulse(i, j, np.minimum(W[i, j], 1), mu, tau, dt_max)
-    plt.savefig(path + 'impulse{}.eps'.format(ext))
-    plt.savefig(path + 'impulse{}.pdf'.format(ext))
-    plt.show()
-    plt.clf()
+        N, M = W.shape
+        for i in range(N):
+            for j in range(M):
+                plt.subplot(N, M, i * M + j + 1)
+                plot_impulse(i, j, mu, tau, dt_max, alpha=A[i, j])
+        plt.savefig(path + 'impulses{}_{}.png'.format(ext, name))
+        plt.show()
+        plt.clf()
 
 def calculate_averages(path, name, dates, burn):
     lambda0_medians = []
@@ -368,8 +352,8 @@ def plot_intensities(events, lambda0, W, mu, tau, path):
 
     # Save figures
     plt.tight_layout()
-    plt.savefig(path + 'intensity_{}.eps'.format(date))
-    plt.savefig(path + 'intensity_{}.pdf'.format(date))
+    # plt.savefig(path + 'intensity_{}.eps'.format(date))
+    # plt.savefig(path + 'intensity_{}.pdf'.format(date))
     plt.show()
     plt.clf()
 
@@ -447,8 +431,8 @@ def plot_bias_series(estimates, upper, lower, dates, path):
     plt.xticks(idx, [l.strftime('%m/%d/%Y') for l in labels], fontsize=8)
 
     plt.tight_layout()
-    plt.savefig(path + 'bias_series.eps')
-    plt.savefig(path + 'bias_series.pdf')
+    # plt.savefig(path + 'bias_series.eps')
+    # plt.savefig(path + 'bias_series.pdf')
     plt.show()
     plt.clf()
 
@@ -531,8 +515,8 @@ def plot_self_connections_series(estimates, upper, lower, dates, path):
     plt.xticks(idx, [l.strftime('%m/%d/%Y') for l in labels], fontsize=8)
 
     plt.tight_layout()
-    plt.savefig(path + 'diagonal_series.eps')
-    plt.savefig(path + 'diagonal_series.pdf')
+    # plt.savefig(path + 'diagonal_series.eps')
+    # plt.savefig(path + 'diagonal_series.pdf')
     plt.show()
     plt.clf()
 
@@ -605,11 +589,28 @@ def plot_endogeneity_series(estimates, upper, lower, dates, path):
     plt.xticks(idx, [l.strftime('%m/%d/%Y') for l in labels], fontsize=8)
 
     plt.tight_layout()
-    plt.savefig(path + 'endog_series.eps')
-    plt.savefig(path + 'endog_series.pdf')
+    # plt.savefig(path + 'endog_series.eps')
+    # plt.savefig(path + 'endog_series.pdf')
     plt.show()
     plt.clf()
 
+# TODO
+def calculate_frequencies(path, name, dates):
+    events = []
+    for date in dates:
+        print("date={}".format(date))
+        events.append(import_events(event_path, name, date, t0, tN))
+    events = pd.concat(events, axis=0)
+    counts = pd.value_counts(events['event']).sort_index()
+    seconds = len(dates) * (tN - t0)
+    return counts / seconds
+
+def calculate_bounds(lowers, uppers):
+    out = []
+    i = 0
+    for l,u in zip(lowers, uppers):
+        print("{}    ({:.{}f}, {:.{}f})".format(i, l, 3, u, 3))
+        i += 1
 
 N = 12
 dt_max = 5
@@ -617,7 +618,7 @@ burn = 2000
 t0 = 34200 + 3600
 tN = 57600 - 3600
 T = tN - t0
-name = 'GOOG'
+name = 'PFE'
 sample_path = '/Users/colinswaney/Desktop/continuous_dt_max={}.hdf5'.format(dt_max)
 event_path = '/Users/colinswaney/Desktop/events.hdf5'
 img_path = '/Users/colinswaney/Desktop/Figures/continuous_dt_max={}/{}/'.format(dt_max, name)
@@ -652,17 +653,17 @@ plot_bias(lambda0, path=img_path)
 plot_self_connections(W, path=img_path)
 
 # Plot medians of posteriors for W.
-W_hat = np.median(W, axis=2)
-plot_weights(W_hat, (0, 1), cmap='Blues', path=img_path)
+# W_hat = np.median(W, axis=2)
+# plot_weights(W_hat, (0, 1), cmap='Blues', path=img_path)
 
 # Plot normalized medians of posteriors for W.
-W_hat_normed = W_hat / lambda0_hat
-plot_weights(np.log(W_hat_normed), (-5, 5), cmap='RdBu', path=img_path, ext='_normed')
+# W_hat_normed = W_hat / lambda0_hat
+# plot_weights(np.log(W_hat_normed), (-5, 5), cmap='RdBu', path=img_path, ext='_normed')
 
 # Plot median impulse response.
-mu_hat = np.median(mu, axis=2)
-tau_hat = np.median(tau, axis=2)
-plot_impulses_1(np.ones((N, N)), mu_hat, tau_hat, dt_max, x_max=dt_max - 0.1, path=img_path)
+# mu_hat = np.median(mu, axis=2)
+# tau_hat = np.median(tau, axis=2)
+# plot_impulses_1(np.ones((N, N)), mu_hat, tau_hat, dt_max, x_max=dt_max - 0.1, path=img_path)
 
 # Plot the fitted intensity
 # plot_intensities(events, lambda0_hat, W_hat, mu_hat, tau_hat, path=img_path)
@@ -673,15 +674,17 @@ averages = calculate_averages(sample_path, name, dates, burn)
 lambda0_avg, W_avg, mu_avg, tau_avg = averages
 
 # Plot medians of posteriors for W.
-plot_weights(W_avg, (0, 1), cmap='Blues', ext='_avg', path=img_path)
+plot_weights(W_avg, (0, 1), cmap='Blues', ext='_matrix', path=img_path)
 
 # Plot normalized medians of posteriors for W.
 W_avg_normed = W_avg / lambda0_avg
-plot_weights(np.log(W_avg_normed), (-5, 5), cmap='RdBu', ext='_avg_normed', path=img_path)
+plot_weights(np.log(W_avg_normed), (-5, 5), cmap='RdBu', ext='_matrix_normed', path=img_path)
 
 # Plot median impulse response.
-plot_impulses_1(np.ones((N, N)), mu_avg, tau_avg, dt_max, x_max=dt_max - 0.1, ext='_avg', path=img_path)
-plot_impulses_2(np.log(W_avg / lambda0_avg), mu_avg, tau_avg, dt_max, x_max=dt_max - 0.1, ext='_avg_normed', path=img_path)
+plot_impulses(W_avg, mu_avg, tau_avg, dt_max, x_min=0.01, x_max=0.1, path=img_path)
+# plot_impulses(np.log(W_avg), mu_avg, tau_avg, dt_max, x_min=0.01, x_max=0.1, ext='_normed', path=img_path, thresh=0.1)
+
+# Calculate frequency of events
 
 
 """Time Series Analysis"""
@@ -697,7 +700,7 @@ plot_bias_series(lambda0_50, lambda0_5, lambda0_95, dates, path=img_path)
 plot_self_connections_series(W_50, W_5, W_95, dates, path=img_path)
 
 # Time series endogeneity
-endog_50 = np.log(np.diagonal(W_50).transpose() / lambda0_50)
-endog_5 = np.log(np.diagonal(W_5).transpose() / lambda0_5)
-endog_95 = np.log(np.diagonal(W_95).transpose() / lambda0_95)
-plot_endogeneity_series(endog_50, endog_5, endog_95, dates, path=img_path)
+# endog_50 = np.log(np.diagonal(W_50).transpose() / lambda0_50)
+# endog_5 = np.log(np.diagonal(W_5).transpose() / lambda0_5)
+# endog_95 = np.log(np.diagonal(W_95).transpose() / lambda0_95)
+# plot_endogeneity_series(endog_50, endog_5, endog_95, dates, path=img_path)

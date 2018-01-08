@@ -2,6 +2,8 @@ from fawkes.models import DiscreteNetworkPoisson
 import matplotlib.pyplot as plt
 import numpy as np
 
+"""Simulation of a simple Hawkes network for basic debugging."""
+
 def plot_sample(lambda0_, W_, theta_, burn=0):
     # Biases
     plt.subplot(3,1,1)

@@ -223,6 +223,52 @@ class NetworkPoisson():
             idx = np.argsort(events)
         return np.array(events)[idx], np.array(nodes)[idx]
 
+    # TODO
+    def generate_data_from_parent(self, T, parent):
+
+        def generate_children(parents, n, T):
+            """Children of node n parent events."""
+            children = [[] for n in range(self.N)]
+            for p in parents:
+                for m in range(self.N):
+                    size = np.random.poisson(self.A[n, m] * self.W[n, m])
+                    c = self.dt_max * logit_normal(size=size, m=self.mu[n, m], s=(1 / self.tau[n, m]))
+                    c = c[ p + c < T ]
+                    children[m].extend(p + c)
+            return children
+
+        # Generate parent events from background rates
+        # for n in range(self.N):
+        #     c = np.random.uniform(T, size=np.random.poisson(T * self.lamb[n]))
+        #     background_events[n].extend(c)
+        #     events.extend(background_events[n])
+        #     nodes.extend([n] * len(c))
+
+        parents = [[] for n in range(self.N)]
+        t,n = parent
+        parents[n].extend([t])
+
+        events = [t]
+        nodes = [n]  # node experiencing event
+
+        # Generate children events from parents iteratively
+        # [print("length of node {} parents: {}".format(n, len(p))) for n,p in enumerate(parents)]
+        while max([len(p) for p in parents]) > 0:
+            children = [[] for n in range(self.N)]
+            for n in range(self.N):
+                if len(parents[n]) > 0:
+                    c = generate_children(parents[n], n, T)
+                    for m in range(self.N):
+                        children[m].extend(c[m])
+                        events.extend(c[m])
+                        nodes.extend([m] * len(c[m]))
+                        # print("node {} generated {} type {} events".format(n, len(c[m]), m))
+            parents = children
+            # [print("length of node {} parents: {}".format(n, len(p))) for n,p in enumerate(parents)]
+            idx = np.argsort(events)
+        return np.array(events)[idx], np.array(nodes)[idx]
+
+    # TODO: Remove this method?
     def simulate_spike(self, T, parent_node, parent_time, units='s'):
 
         def generate_children(parents, n, T):

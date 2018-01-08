@@ -64,9 +64,8 @@ def plot_bias(lambda0, path):
     plt.subplot(3, 2, 6)
     plot_pair(lambda0[10,:], lambda0[11,:], 'EXECUTES', [0.015, 0.025])
     plt.tight_layout()
-    plt.savefig(path + 'bias.eps')
-    plt.savefig(path + 'bias.pdf')
-    plt.show()
+    plt.savefig(path + 'bias_{}.pdf'.format(name))
+    # plt.show()
     plt.clf()
 
 def plot_self_connections(W, path):
@@ -95,9 +94,8 @@ def plot_self_connections(W, path):
     plt.subplot(3, 2, 6)
     plot_pair(diagonal[10,:], diagonal[11,:], 'EXECUTES', [0.015, 0.025])
     plt.tight_layout()
-    plt.savefig(path + 'diagonal.eps')
-    plt.savefig(path + 'diagonal.pdf')
-    plt.show()
+    plt.savefig(path + 'weights_{}.pdf'.format(name))
+    # plt.show()
     plt.clf()
 
 def plot_weights(W, path, ext=None, cmap=None):
@@ -128,9 +126,8 @@ def plot_weights(W, path, ext=None, cmap=None):
     plt.ylabel("Parent nodes", labelpad=20, fontsize=8)
     plt.yticks(np.arange(0, 12), tick_labels, fontsize=8)
     plt.tight_layout()
-    plt.savefig(path + 'weights{}.eps'.format(ext))
-    plt.savefig(path + 'weights{}.pdf'.format(ext))
-    plt.show()
+    plt.savefig(path + 'weight_matrix{}_{}.pdf'.format(ext, name))
+    # plt.show()
     plt.clf()
 
 def plot_impulses_1(theta, W, N, L, B, dt, path, ext=None):
@@ -154,8 +151,8 @@ def plot_impulses_1(theta, W, N, L, B, dt, path, ext=None):
         for j in range(M):
             plt.subplot(N, M, i * M + j + 1)
             plot_impulse(model, i, j, theta, W[i, j] / w, L)
-    plt.savefig(path + 'impulse{}.eps'.format(ext))
-    plt.savefig(path + 'impulse{}.pdf'.format(ext))
+    # plt.savefig(path + 'impulse{}.eps'.format(ext))
+    # plt.savefig(path + 'impulse{}.pdf'.format(ext))
     plt.show()
     plt.clf()
 
@@ -170,7 +167,7 @@ def plot_impulses_2(theta, W, N, L, B, dt, path, ext=None, thresh=None):
         plt.xlim([1, L + 1])
         plt.yticks([])
         plt.xticks([])
-        # plt.axis('off')
+        plt.axis('off')
 
     if ext is None:
         ext = ''
@@ -183,13 +180,8 @@ def plot_impulses_2(theta, W, N, L, B, dt, path, ext=None, thresh=None):
             if W[i, j] > thresh:
                 plt.subplot(N, M, i * M + j + 1)
                 plot_impulse(model, i, j, theta, 1, L)
-                if j == 0:
-                    plt.ylabel(i)
-                if i == M - 1:
-                    plt.xlabel(j)
-    plt.savefig(path + 'impulse{}.eps'.format(ext))
-    plt.savefig(path + 'impulse{}.pdf'.format(ext))
-    plt.show()
+    plt.savefig(path + 'impulse{}_{}.pdf'.format(ext, name))
+    # plt.show()
     plt.clf()
 
 def calculate_averages(path, name, dates, burn):
@@ -282,8 +274,8 @@ def plot_intensities(spikes, lambda0, W, theta, path):
 
     # Save figures
     plt.tight_layout()
-    plt.savefig(path + 'intensity_{}.eps'.format(date))
-    plt.savefig(path + 'intensity_{}.pdf'.format(date))
+    # plt.savefig(path + 'intensity_{}.eps'.format(date))
+    # plt.savefig(path + 'intensity_{}.pdf'.format(date))
     plt.show()
     plt.clf()
 
@@ -321,8 +313,8 @@ def plot_bias_series(estimates, uppers, lowers, dates, path):
     plt.subplot(3, 2, 6)
     plot_pair((10, 11), estimates, uppers, lowers, label='EXECUTES')
     plt.tight_layout()
-    plt.savefig(path + 'bias_series.eps')
-    plt.savefig(path + 'bias_series.pdf')
+    # plt.savefig(path + 'bias_series_{}.eps'.format(name))
+    # plt.savefig(path + 'bias_series_{}.pdf'.format(name))
     plt.show()
     plt.clf()
 
@@ -359,8 +351,8 @@ def plot_self_connections_series(estimates, uppers, lowers, dates, path):
     plt.subplot(3, 2, 6)
     plot_pair((10, 11), estimates, uppers, lowers, label='EXECUTES')
     plt.tight_layout()
-    plt.savefig(path + 'self_connections_series.eps')
-    plt.savefig(path + 'self_connections_series.pdf')
+    # plt.savefig(path + 'self_connections_series.eps')
+    # plt.savefig(path + 'self_connections_series.pdf')
     plt.show()
     plt.clf()
 
@@ -394,8 +386,8 @@ def plot_endogeneity_series(estimates, uppers, lowers, dates, path):
     plot_pair((10, 11), estimates, uppers, lowers, label='EXECUTES')
 
     plt.tight_layout()
-    plt.savefig(path + 'endogeneity_series.eps')
-    plt.savefig(path + 'endogeneity_series.pdf')
+    # plt.savefig(path + 'endogeneity_series.eps')
+    # plt.savefig(path + 'endogeneity_series.pdf')
     plt.show()
     plt.clf()
 
@@ -408,10 +400,7 @@ burn = 2000
 t0 = 34200 + 3600
 tN = 57600 - 3600
 T = tN - t0
-name = 'GOOG'
-# sample_path = '/Volumes/datasets/ITCH/samples/discrete.hdf5'
-# event_path = '/Volumes/datasets/ITCH/events/events.hdf5'
-# data_path = '/Volumes/datasets/ITCH/hdf5/'
+name = 'PFE'
 sample_path = '/Users/colinswaney/Desktop/discrete_B={}_L={}.hdf5'.format(B, L)
 event_path = '/Users/colinswaney/Desktop/events.hdf5'
 img_path = '/Users/colinswaney/Desktop/Figures/discrete_B={}_L={}/{}/'.format(B, L, name)
@@ -446,16 +435,16 @@ plot_bias(lambda0, path=img_path)
 plot_self_connections(W, path=img_path)
 
 # Plot medians of posteriors for W.
-W_hat = np.median(W, axis=2)
-plot_weights(W_hat, cmap='Blues', path=img_path)
+# W_hat = np.median(W, axis=2)
+# plot_weights(W_hat, cmap='Blues', path=img_path)
 
 # Plot normalized medians of posteriors for W.
-W_hat_normed = W_hat / lambda0_hat
-plot_weights(np.log(W_hat_normed), cmap='RdBu', path=img_path, ext='_normed')
+# W_hat_normed = W_hat / lambda0_hat
+# plot_weights(np.log(W_hat_normed), cmap='RdBu', path=img_path, ext='_normed')
 
 # Plot median impulse response.
-theta_hat = np.median(theta, axis=3)
-plot_impulses_2(theta_hat, np.log(W_hat_normed), N, L, B, dt, path=img_path, thresh=np.log(1))
+# theta_hat = np.median(theta, axis=3)
+# plot_impulses_2(theta_hat, np.log(W_hat_normed), N, L, B, dt, path=img_path, thresh=np.log(1))
 
 # Plot the fitted intensity
 # plot_intensities(spikes, lambda0_hat, W_hat, theta_hat, path=img_path)
@@ -466,14 +455,14 @@ averages = calculate_averages(sample_path, name, dates, burn)
 lambda0_avg, W_avg, theta_avg = averages
 
 # Plot medians of posteriors for W.
-plot_weights(W_avg, cmap='Blues', ext='_avg', path=img_path)
+plot_weights(W_avg, cmap='Blues', ext='', path=img_path)
 
 # Plot normalized medians of posteriors for W.
 W_avg_normed = W_avg / lambda0_avg
-plot_weights(np.log(W_avg_normed), cmap='RdBu', ext='_avg_normed', path=img_path)
+plot_weights(np.log(W_avg_normed), cmap='RdBu', ext='_normed', path=img_path)
 
 # Plot median impulse response.
-plot_impulses_2(theta_avg, np.log(W_avg_normed), N, L, B, dt, path=img_path, ext='_avg', thresh=np.log(2))
+plot_impulses_2(theta_avg, np.log(W_avg_normed), N, L, B, dt, path=img_path, ext='_normed', thresh=np.log(1))
 
 
 """Time Series Analysis"""
@@ -489,7 +478,7 @@ plot_bias_series(lambda0_50, lambda0_5, lambda0_95, dates, path=img_path)
 plot_self_connections_series(W_50, W_5, W_95, dates, path=img_path)
 
 # Time series endogeneity
-endog_50 = np.log(np.diagonal(W_50).transpose() / lambda0_50)
-endog_5 = np.log(np.diagonal(W_5).transpose() / lambda0_5)
-endog_95 = np.log(np.diagonal(W_95).transpose() / lambda0_95)
-plot_endogeneity_series(endog_50, endog_5, endog_95, dates, path=img_path)
+# endog_50 = np.log(np.diagonal(W_50).transpose() / lambda0_50)
+# endog_5 = np.log(np.diagonal(W_5).transpose() / lambda0_5)
+# endog_95 = np.log(np.diagonal(W_95).transpose() / lambda0_95)
+# plot_endogeneity_series(endog_50, endog_5, endog_95, dates, path=img_path)
