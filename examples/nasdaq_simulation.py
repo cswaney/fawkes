@@ -12,6 +12,11 @@ snapshot selected from the data, simulates a series of events, and calculates
 a number of statistics summarizing the simulated order book data.
 """
 
+class Display():
+
+    def __init__(self):
+        pass
+
 class Order():
 
     def __init__(self, label, side, price, shares, refno=None):
@@ -334,11 +339,42 @@ class OrderBook():
 
 class Agent():
 
-    def __init__(self, actions):
+    def __init__(self, actions, score=0, inventory=0, orders=[], algorithm=None, time=0):
         self.actions = actions
+        self.score = score
+        self.inventory = inventory
+        self.orders = orders
+        self.algorithm = algorithm
+        self.time = 0
+
+    def reset(self):
+        self.score = 0
+        self.inventory = 0
+        self.orders = []
+        self.time = 0
 
     def action(self, state):
+        """Choose an action using algorithm.
+
+        Valid algorithms must be of the form:
+
+            def algorithm(actions, args):
+                ...
+                return action
+
+        The arguments passed to algorithm will need to be passed through 'state'. These
+        might include: the state of the book, past orders, timestamp, etc...
+        """
         return np.random.choice(self.actions, p=[0.999, 0.0005, 0.0005])
+        # return self.algorithm(self.actions)
+
+    def update(self, result):
+        """Update orders and score based on result."""
+        pass
+        # ...
+        # self.orders += order
+        # self.inventory += shares
+        # self.score += price * shares
 
 class Simulator():
 
@@ -386,7 +422,6 @@ class Simulator():
                     events.append((self.times[i], self.nodes[i]))
                     i += 1
                 else:
-                    # print('(Event {} is the last event)'.format(i))
                     break
             if len(events) > 0:
                 print('Found {} events in interval ({}, {}): {}'.format(len(events), round(t - self.dt, 3), round(t, 3), events))
@@ -395,7 +430,6 @@ class Simulator():
                 order = self.to_order(node)
                 print('Updating book for EVENT ({}) at time {}'.format(order, time))
                 self.book.update(order)
-                # self.book.show()
                 self.live_plot(t)
                 input()
             # Take an action
@@ -411,7 +445,6 @@ class Simulator():
                 order = self.to_order(action)
                 print('Updating book for ACTION ({}) at time {}'.format(order, t))
                 self.book.update(order)
-                # self.book.show()
                 # Generate new events based on the action: doesn't depend on any other past events!
                 events = self.generate_events(t_max, (t, action))
                 self.update_events(events)
@@ -419,7 +452,6 @@ class Simulator():
                 self.live_plot(t)
                 input()
             t += self.dt
-            # print('t={}, i={}, t_max={}, i_max={}'.format(t, i, t_max, len(self.times) - 1))
         print('Reached the end of simulation (t={})'.format(t_max))
         self.live_plot(t)
 
@@ -475,71 +507,92 @@ class Simulator():
         # plot current order book
         plt.subplot(212)
         self.book.show()
+        # plt.waitforbuttonpress()
 
     def to_order(self, node):
         """Convert an event to an order"""
-        nodes = [('add', 'bid', 0),
+        nodes = [('add', 'bid', -1),
+                 ('add', 'bid', 0),
                  ('add', 'bid', 1),
-                 ('add', 'bid', 2),
+                 ('add', 'ask', -1),
                  ('add', 'ask', 0),
                  ('add', 'ask', 1),
-                 ('add', 'ask', 2),
+                 ('delete', 'bid', 0),
                  ('delete', 'bid', 1),
-                 ('delete', 'bid', 2),
+                 ('delete', 'ask', 0),
                  ('delete', 'ask', 1),
-                 ('delete', 'ask', 2),
                  ('execute', 'bid', None),
                  ('execute', 'ask', None)]
         label, side, level = nodes[node]
         if label == 'add':
+            if level == -1:
+                if side == 'bid':
+                    price = self.book.prices()[side][0] + 1
+                elif side == 'ask':
+                    price = self.book.prices()[side][0] - 1
+            else:
+                price = self.book.prices()[side][level]
+            shares = np.random.choice([100, 200, 300])
+            order = Order(label, side, price, shares, None)
+        elif label == 'delete':
             price = self.book.prices()[side][level]
-            order = Order(label, side, price, shares=100)
-        else:
-            order = self.get_order(label, side, level)
+            if side == 'bid':
+                order = np.random.choice(self.book.bids[price])
+            elif side == 'ask':
+                order = np.random.choice(self.book.asks[price])
+            order.label = 'delete'
+        elif label == 'execute':
+            shares = np.random.choice([10, 50, 100])
+            order = Order(label, side, None, shares, None)
         return order
 
 # Example
-def example():
+def random_add_order():
+    label = 'add'
+    side = np.random.choice(['bid', 'ask'])
+    if side == 'bid':
+        price = np.random.choice(np.arange(2991, 3003, 1, dtype='int'))
+    else:
+        price = np.random.choice(np.arange(2998, 3011, 1, dtype='int'))
+    shares = np.random.choice(np.arange(100, 400, 100))
+    refno = None
+    return Order(label, side, price, shares, refno)
 
-    def random_add_order():
-        label = 'add'
-        side = np.random.choice(['bid', 'ask'])
-        if side == 'bid':
-            price = np.random.choice(np.arange(2991, 3003, 1, dtype='int'))
-        else:
-            price = np.random.choice(np.arange(2998, 3011, 1, dtype='int'))
-        shares = np.random.choice(np.arange(100, 400, 100))
-        refno = None
-        return Order(label, side, price, shares, refno)
+N = 20
+orders = []
+n = 0
+book = OrderBook()
+while n < N:
+    order = random_add_order()
+    print('{}'.format(order))
+    if order.refno not in [order.refno for order in orders] and order.refno is not None:
+        orders.append(order)
+    if order.label == 'delete':
+        for o in orders:
+            if o.refno == order.refno:
+                orders.remove(o)
+    book.update(order)
+    n += 1
 
-        N = 20
-        orders = []
-        n = 0
-        book = OrderBook()
-        while n < N:
-            order = random_add_order()
-            print('{}'.format(order))
-            if order.refno not in [order.refno for order in orders] and order.refno is not None:
-                orders.append(order)
-            if order.label == 'delete':
-                for o in orders:
-                    if o.refno == order.refno:
-                        orders.remove(o)
-            book.update(order)
-            n += 1
+dt = 0.001
+t_max = 5
 
-    dt = 0.001
-    t_max = 5
-    t0 = 0.5
-    N = 2
-    lambda0 = np.array([1.0, 1.0])
-    W = np.array([[0.5, 0.1], [0.1, 0.5]])
-    mu = -1.0 * np.ones((N,N))
-    tau = 1.0 * np.ones((N,N))
-    model = NetworkPoisson(N=N, dt_max=1.0, params={'lamb': lambda0, 'weights': W, 'mu': mu, 'tau': tau})
-    agent = Agent([None, 0, 1])
-    simulator = Simulator(book, model, agent, dt)
-    simulator.generate_events(t_max)
-    simulator.live_plot(0)
-    input()
-    simulator.run(t_max)
+N = 12
+lambda0 = 0.4 * np.ones(N)
+W = 0.1 * np.eye(N)
+mu = -1.0 * np.ones((N,N))
+tau = 1.0 * np.ones((N,N))
+
+# N = 2
+# lambda0 = np.array([1.0, 1.0])
+# W = np.array([[0.5, 0.1], [0.1, 0.5]])
+# mu = -1.0 * np.ones((N,N))
+# tau = 1.0 * np.ones((N,N))
+
+model = NetworkPoisson(N=N, dt_max=1.0, params={'lamb': lambda0, 'weights': W, 'mu': mu, 'tau': tau})
+agent = Agent([None, 0, 1])
+simulator = Simulator(book, model, agent, dt)
+simulator.generate_events(t_max)
+simulator.live_plot(0)
+input()
+simulator.run(t_max)
