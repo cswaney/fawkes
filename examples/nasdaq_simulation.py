@@ -14,30 +14,157 @@ a number of statistics summarizing the simulated order book data.
 
 class Display():
 
-    def __init__(self):
+    def __init__(self, **kwargs):
+
+        plt.ion()
+        plt.rc('font', size=8, family='Arial')
+
+        self.events_ax = plt.subplot2grid((6,2), (0,0), rowspan=3)
+        self.book_ax = plt.subplot2grid((6,2), (3,0), rowspan=3)
+        self.score_ax = plt.subplot2grid((6,2), (0,1), rowspan=2)
+        self.inventory_ax = plt.subplot2grid((6,2), (2,1), rowspan=2)
+        self.orders_ax = plt.subplot2grid((6,2), (4,1), rowspan=2)
+        plt.tight_layout()
+
+        # Default kwargs
+        self.events_xlim, self.events_ylim = ([0, 5], [0, 4])
+        self.book_xlim, self.book_ylim = ([2990, 3010], [0, 2000])
+        self.agent_xlim, self.agent_ylim = ([0, 5], [-10, 10])
+        self.orders_xlim, self.orders_ylim = ([2990], [3010])
+        self.pause = True
+
+        # Set the xlim and ylim for axes using kwargs
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    def plot_events(self, time, events):
+
+        originals, actions, generated = events
+        o = [s for s in originals['times'] if s <= time]
+        a = [s for s in actions['times'] if s <= time]
+        g = [s for s in generated['times'] if s <= time]
+
+        self.events_ax.clear()
+        self.events_ax.set_title('Events', loc='right')
+        self.events_ax.set_xlim(self.events_xlim[0], self.events_xlim[1])
+        self.events_ax.set_ylim(0, 4)
+        self.events_ax.set_yticks([1, 2, 3], ['Originals', 'Actions', 'Generated'])
+        self.events_ax.tick_params(direction='in')
+
+        _ = self.events_ax.scatter(originals['times'], [1] * len(originals['times']), color='C0', alpha=0.25)
+        _ = self.events_ax.scatter(o, [1] * len(o), color='C0')
+        _ = self.events_ax.scatter(a, [2] * len(a), color='C1')
+        _ = self.events_ax.scatter(g, [3] * len(g), color='C2')
+
+    def plot_book(self, book):
+
+        self.book_ax.clear()
+        self.book_ax.set_title('Books', loc='right')
+        self.book_ax.set_xlim(self.book_xlim[0], self.book_xlim[1])
+        self.book_ax.set_xticks(range(self.book_xlim[0], self.book_xlim[1] + 1, 2))
+        self.book_ax.set_ylim(self.book_ylim[0], self.book_ylim[1])
+        self.book_ax.tick_params(direction='in')
+
+        bids, asks = book
+        for price in bids.keys():
+            x = [price] * len(bids[price])
+            h = [order.shares for order in bids[price]]
+            if len(bids[price]) == 0:
+                b = [0]
+                # print('x={}\nh={}\nb={}'.format(x, h, b))
+            else:
+                b = [sum(h[:i]) for i,_ in enumerate(h)]
+                # print('x={}\nh={}\nb={}'.format(x, h, b))
+            _ = self.book_ax.bar(x, h, bottom=b, width=1, color='C0', edgecolor='white', linewidth=1)
+        for price in asks.keys():
+            x = [price] * len(asks[price])
+            h = [order.shares for order in asks[price]]
+            if len(asks[price]) == 0:
+                b = [0]
+                # print('x={}\nh={}\nb={}'.format(x, h, b))
+            else:
+                b = [sum(h[:i]) for i,_ in enumerate(h)]
+                # print('x={}\nh={}\nb={}'.format(x, h, b))
+            _ = self.book_ax.bar(x, h, bottom=b, width=1, color='C2', edgecolor='white', linewidth=1)
+
+    def plot_score(self, scores):
+        self.score_ax.clear()
+        self.score_ax.set_title('Score', loc='right')
+        self.score_ax.set_xlim(self.agent_xlim[0], self.agent_xlim[1])
+        self.score_ax.set_ylim(self.agent_ylim[0], self.agent_ylim[1])
+        self.score_ax.tick_params(right=True, left=False, labelright=True, labelleft=False, direction='in')
+        _ = self.score_ax.plot(scores, color='C0', linestyle='--')
+
+    def plot_inventory(self, time, inventory):
+        self.inventory_ax.clear()
+        self.inventory_ax.set_title('Inventory', loc='right')
+        self.inventory_ax.set_xlim(self.agent_xlim[0], self.agent_xlim[1])
+        self.inventory_ax.set_ylim(self.agent_ylim[0], self.agent_ylim[1])
+        self.inventory_ax.tick_params(right=True, left=False, labelright=True, labelleft=False, direction='in')
+        _ = self.inventory_ax.plot(inventory, color='C0', linestyle='--')
+
+    def plot_orders(self, time, orders):
+        self.orders_ax.clear()
+        self.orders_ax.set_title('Orders', loc='right')
+        # self.orders_ax.set_xlim(0, 9)
+        self.orders_ax.set_ylim(self.orders_ylim[0], self.orders_ylim[1])
+        self.orders_ax.tick_params(right=True, left=False, labelright=True, labelleft=False, direction='in')
+
+        # _ = self.orders_ax.bar(time, orders, color='C0')
+
         pass
 
-class Order():
+    def draw(self):
+        plt.draw()
+        plt.tight_layout()
+        if self.pause:
+            input('Display paused [Press any button to continue].')
 
-    def __init__(self, label, side, price, shares, refno=None):
-        if label == 'delete':
-            assert refno is not None, 'delete orders require a refno'
-        self.label = label  # order type ('add', 'delete', 'execute')
+class Message():
+    """Used to pass messages back to agent after order book updates."""
+
+    def __init__(self, timestamp, label, side, price, shares, refno):
+        assert refno is not None, 'Message did not receive a reference number'
+        assert label in ('add', 'delete', 'execute'), 'Message received an invalid label (valid labels are: add, delete, and execute)'
+        self.timestamp = timestamp
+        self.label = label
         self.side = side
         self.price = price
         self.shares = shares
-        if label == 'add':
+        self.refno = refno
+
+    def __str__(self):
+        items = [round(self.timestamp, 3), self.label, self.side, self.price, self.shares ,self.refno]
+        return "<Message(timestamp={}, label='{}', side='{}', price={}, shares={}, refno={})>".format(*items)
+
+    def __repr__(self):
+        items = [round(self.timestamp, 3), self.label, self.side, self.price, self.shares ,self.refno]
+        return "<Message(timestamp={}, label='{}', side='{}', price={}, shares={}, refno={})>".format(*items)
+
+class Order():
+    """Used to update the order book."""
+
+    def __init__(self, timestamp, label, side, price, shares, refno=None):
+        if label == 'cancel':
+            assert refno is not None, 'Order (label=cancel) did not receive a reference number'
+        assert label in ('limit', 'cancel', 'market')
+        self.timestamp = timestamp
+        self.label = label
+        self.side = side
+        self.price = price
+        self.shares = shares
+        if label == 'limit':
             self.refno = np.random.randint(low=0, high=10 ** 9)
         else:
             self.refno = refno
 
     def __str__(self):
-        items = [self.label, self.side, self.price, self.shares ,self.refno]
-        return "<Order(label='{}', side='{}', price={}, shares={}, refno={})>".format(*items)
+        items = [round(self.timestamp, 3), self.label, self.side, self.price, self.shares ,self.refno]
+        return "<Order(timestamp={}, label='{}', side='{}', price={}, shares={}, refno={})>".format(*items)
 
     def __repr__(self):
-        items = [self.label, self.side, self.price, self.shares ,self.refno]
-        return "<Order(label='{}', side='{}', price={}, shares={}, refno={})>".format(*items)
+        items = [round(self.timestamp, 3), self.label, self.side, self.price, self.shares ,self.refno]
+        return "<Order(timestamp={}, label='{}', side='{}', price={}, shares={}, refno={})>".format(*items)
 
 class OrderBook():
 
@@ -91,69 +218,117 @@ class OrderBook():
 
     def update(self, order):
         """Update the status of the order book."""
-        if order.label == "add":
-            self.add_order(order)
-        elif order.label == "delete":
-            self.delete_order(order)
-        elif order.label == "execute":
-            self.execute_order(order)
+        if order.label == 'limit':
+            message = self.add_order(order)
+            if message is not None:
+                return [message]
+            else:
+                return message
+        elif order.label == 'cancel':
+            message = self.delete_order(order)
+            if message is not None:
+                return [message]
+            else:
+                return message
+        elif order.label == 'market':
+            return self.execute_order(order)  # possibly multiple messages
 
     def add_order(self, order):
         """Process an add order."""
-        assert order.label == "add", "add_order recieved a non-add order."
-        assert order.side in ('bid', 'ask'), "add_order side not specified"
-        if order.side == "bid":
+        assert order.label == 'limit', "add_order received a {} order.".format(order.label)
+        assert order.side in ('bid', 'ask'), "add_order received an order with an invalid side"
+        if order.side == 'bid':
             if len(self.asks.keys()) > 0:
                 if not order.price < min(self.asks.keys()):
-                    print("Attempted ADD BID order above best ask; SKIPPING")
-                    return
+                    print(">> LIMIT BID received above best ask; returning None")
+                    return None
             if order.price in self.bids.keys():
                 self.bids[order.price].append(order)
-                print("BID order appended to queue at prince {}".format(order.price))
+                print(">> LIMIT BID appended to queue at price {}".format(order.price))
+                return Message(timestamp=order.timestamp,
+                               label='add',
+                               side=order.side,
+                               price=order.price,
+                               shares=order.shares,
+                               refno=order.refno)
             else:
                 self.bids[order.price] = [order]
-                print("New BID queue started at price {}".format(order.price))
-        elif order.side == "ask":
+                print(">> LIMIT BID started a new queue at price {}".format(order.price))
+                return Message(timestamp=order.timestamp,
+                               label='add',
+                               side=order.side,
+                               price=order.price,
+                               shares=order.shares,
+                               refno=order.refno)
+        elif order.side == 'ask':
             if len(self.bids.keys()) > 0:
                 if not order.price > max(self.bids.keys()):
-                    print("Attempted ADD ASK order below best bid; SKIPPING")
-                    return
+                    print(">> LIMIT ASK received below best bid; returning None")
+                    return None
             if order.price in self.asks.keys():
                 self.asks[order.price].append(order)
-                print("ASK order appended to queue at prince {}".format(order.price))
+                print(">> LIMIT ASK appended to queue at price {}".format(order.price))
+                return Message(timestamp=order.timestamp,
+                               label='add',
+                               side=order.side,
+                               price=order.price,
+                               shares=order.shares,
+                               refno=order.refno)
             else:
                 self.asks[order.price] = [order]
-                print("New ASK queue started at price {}".format(order.price))
+                print(">> LIMIT ASK started a new queue at price {}".format(order.price))
+                return Message(timestamp=order.timestamp,
+                               label='add',
+                               side=order.side,
+                               price=order.price,
+                               shares=order.shares,
+                               refno=order.refno)
 
     def delete_order(self, order):
         """Process a delete order."""
-        assert order.label == "delete", "delete_order recieved a non-delete order."
-        if order.side == "bid":
+        assert order.label == 'cancel', "delete_order received a {} order.".format(order.label)
+        if order.side == 'bid':
             try:
                 queue = self.bids[order.price]
                 idx = [o.refno for o in queue].index(order.refno)
-                queue.pop(idx)
-                print("Deleted BID order {}".format(order.refno))
+                o = queue.pop(idx)
+                print(">> Deleted BID order {}".format(order.refno))
+                # Check if the queue if empty now...
                 if len(queue) == 0:
                     self.bids.pop(order.price)
-                    print("Removed price {} from BIDS".format(order.price))
+                    print(">> Removed queue with price {} from bids".format(order.price))
+                return Message(timestamp=order.timestamp,
+                               label='delete',
+                               side=order.side,
+                               price=order.price,
+                               shares=o.shares,  # potentially different from original order!
+                               refno=order.refno)
             except:
-                print("Tried to remove a non-existent BID order.")
-        elif order.side == "ask":
+                print(">> BID order with reference number {} and price {} does not exist; returning None".format(order.refno, order.price))
+                return None
+        elif order.side == 'ask':
             try:
                 queue = self.asks[order.price]
                 idx = [o.refno for o in queue].index(order.refno)
-                queue.pop(idx)
-                print("Deleted ASK order {}".format(order.refno))
+                o = queue.pop(idx)
+                print(">> Deleted ASK order {}".format(order.refno))
+               # Check if the queue if empty now...
                 if len(queue) == 0:
                     self.asks.pop(order.price)
-                    print("Removed price {} from ASKS".format(order.price))
+                    print(">> Removed queue with price {} from asks".format(order.price))
+                return Message(timestamp=order.timestamp,
+                               label='delete',
+                               side=order.side,
+                               price=order.price,
+                               shares=o.shares,  # potentially different from original order!
+                               refno=order.refno)
             except:
-                print("Tried to remove a non-existent ASK order.")
+                print(">> ASK order with reference number {} and price {} does not exist; returning None".format(order.refno, order.price))
+                return None
 
     def execute_order(self, order):
         """Process a market order."""
-        assert order.label == "execute", "execute_order recieved a non-execute order."
+        assert order.label == 'market', "execute_order recieved a {} order.".format(order.label)
         if order.side == 'bid':
             side = 'ask'
         elif order.side == 'ask':
@@ -163,7 +338,14 @@ class OrderBook():
             matched_shares = min(order.shares, match.shares)
             order.shares -= matched_shares
             match.shares -= matched_shares
-            print("executed {} shares".format(matched_shares))
+            print(">> Executed {} shares @ {}".format(matched_shares, match.price))
+            message = Message(timestamp=order.timestamp,
+                              label='execute',
+                              side=match.side,
+                              price=match.price,
+                              shares=matched_shares,
+                              refno=match.refno)
+            messages = [message]
             while True:
                 # Remove completed match
                 if match.shares == 0:
@@ -178,22 +360,33 @@ class OrderBook():
                     # Find the next match
                     match = self.get_best(side)
                     if (match is None) and (order.shares > 0):
-                        print("MARKET order was PARTIALLY executed.")
+                        print(">> MARKET order was PARTIALLY executed.")
                         break
                     elif (match is None) and (order.shares == 0):
-                        print("MARKET order was FULLY executed.")
+                        print(">> MARKET order was FULLY executed.")
                         break
                 if order.shares == 0:
-                    print("MARKET order was FULLY executed.")
+                    print(">> MARKET order was FULLY executed.")
                     break
                 matched_shares = min(order.shares, match.shares)
                 order.shares -= matched_shares
                 match.shares -= matched_shares
-                print("executed {} shares".format(matched_shares))
+                print(">> Executed {} shares @ {}".format(matched_shares, match.price))
+                message = Message(timestamp=order.timestamp,
+                                  label='execute',
+                                  side=match.side,
+                                  price=match.price,
+                                  shares=matched_shares,
+                                  refno=match.refno)
+                messages += message
+            return messages
+        else:
+            print(">> MARKET order was not executed (no match found); returning None")
+            return None
 
     def get_best(self, side):
         """Return the best offer on a given side of the book."""
-        if side == "bid":
+        if side == 'bid':
             prices = list(self.bids.keys())
             if len(prices) > 0:
                 return self.bids[max(prices)][0]
@@ -365,6 +558,9 @@ class Agent():
         The arguments passed to algorithm will need to be passed through 'state'. These
         might include: the state of the book, past orders, timestamp, etc...
         """
+        events, messages = state
+        for message in messages:
+            print('* Agent received message: {}'.format(message))
         return np.random.choice(self.actions, p=[0.999, 0.0005, 0.0005])
         # return self.algorithm(self.actions)
 
@@ -382,6 +578,7 @@ class Simulator():
         self.book = book
         self.model = model
         self.agent = agent
+        self.display = Display()
         self.dt = dt
 
     def generate_events(self, t_max, event=None):
@@ -410,12 +607,13 @@ class Simulator():
             self.actions = {'times': [], 'nodes': []}
             self.generated = {'times': [], 'nodes': []}
 
-    def run(self, t_max):
+    def run(self, t_max, pause=True):
         """Apply algorithm to the sequence of order book states."""
+        messages = None
         t = self.dt
         i = 0
         while t < t_max:
-            # Find events that occurred in (t - dt, t)
+            # Find events that occurred in (t - dt, t), excluding agent's own actions (?)
             events = []
             while self.times[i] < t:
                 if i < len(self.times) - 1:
@@ -426,34 +624,36 @@ class Simulator():
             if len(events) > 0:
                 print('Found {} events in interval ({}, {}): {}'.format(len(events), round(t - self.dt, 3), round(t, 3), events))
             # Update the book
+            if messages is not None:
+                message_list = messages  # include the results of previous agent action!
+            else:
+                message_list = []
             for time, node in events:
-                order = self.to_order(node)
-                print('Updating book for EVENT ({}) at time {}'.format(order, time))
-                self.book.update(order)
-                self.live_plot(t)
-                input()
+                order = self.to_order(node, time)
+                print('> Updating book for EVENT ({})'.format(order))
+                messages = self.book.update(order)
+                if messages is not None:
+                    message_list.extend(messages)
+                self.plot(t, pause)
             # Take an action
-            if len(events) > 0:  # at least one event occurred
-                time, node = events[-1]
-            else:  # no events have occurred
-                time, node = (0, None)
-            state = time, node
-            action = self.agent.action(state)
+            state = (events, message_list)
+            action = self.agent.action(state)  # Agent can decide what to do with data!
             if action is not None:
                 i += 1  # NEED TO SKIP THE ACTION'S EVENT NEXT LOOP!
                 print('Agent performed ACTION {}'.format(action))
-                order = self.to_order(action)
-                print('Updating book for ACTION ({}) at time {}'.format(order, t))
-                self.book.update(order)
+                order = self.to_order(action, t)
+                print('> Updating book for ORDER ({})'.format(order))
+                messages = self.book.update(order)
                 # Generate new events based on the action: doesn't depend on any other past events!
                 events = self.generate_events(t_max, (t, action))
                 self.update_events(events)
                 # print('t={}, events={}'.format(t, events))
-                self.live_plot(t)
-                input()
+                self.plot(t, pause)
+            elif action is None:
+                messages = None
             t += self.dt
         print('Reached the end of simulation (t={})'.format(t_max))
-        self.live_plot(t)
+        self.plot(t, pause=False)
 
     # TODO: faster to directly insert the new events?
     def update_events(self, events):
@@ -487,44 +687,50 @@ class Simulator():
         plt.legend(['originals', 'actions', 'generated', 'total'], loc='right')
         plt.show()
 
-    def live_plot(self, t):
-        plt.close()
-        plt.subplot(211)
-        # plot events up to time t
-        originals = self.originals['times']
-        currents = [s for s in self.originals['times'] if s <= t]
-        actions = [s for s in self.actions['times'] if s <= t]
-        generated = [s for s in self.generated['times'] if s <= t]
-        plt.scatter(originals, [1] * len(originals), alpha=0.25, color='C0')  # originals
-        plt.scatter(currents, [1] * len(currents), color='C0')  # originals - current
-        plt.scatter(actions, [2] * len(actions), color='C1')  # actions
-        plt.scatter(generated, [3] * len(generated), color='C2')  # generated
-        # plt.legend(['originals', 'actions', 'generated', 'total'], loc='right')
-        plt.ylim(0,4)
-        plt.xlim(0,5)
-        plt.yticks([1, 2, 3], ['Orig.', 'Act.', 'Gen.'])
-        plt.show()
-        # plot current order book
-        plt.subplot(212)
-        self.book.show()
-        # plt.waitforbuttonpress()
+    def plot(self, time, pause):
+        # plt.close()
+        # plt.subplot(211)
+        # # plot events up to time t
+        # originals = self.originals['times']
+        # currents = [s for s in self.originals['times'] if s <= t]
+        # actions = [s for s in self.actions['times'] if s <= t]
+        # generated = [s for s in self.generated['times'] if s <= t]
+        # plt.scatter(originals, [1] * len(originals), alpha=0.25, color='C0')  # originals
+        # plt.scatter(currents, [1] * len(currents), color='C0')  # originals - current
+        # plt.scatter(actions, [2] * len(actions), color='C1')  # actions
+        # plt.scatter(generated, [3] * len(generated), color='C2')  # generated
+        # # plt.legend(['originals', 'actions', 'generated', 'total'], loc='right')
+        # plt.ylim(0,4)
+        # plt.xlim(0,5)
+        # plt.yticks([1, 2, 3], ['Orig.', 'Act.', 'Gen.'])
+        # plt.show()
+        # # plot current order book
+        # plt.subplot(212)
+        # self.book.show()
 
-    def to_order(self, node):
+        self.display.plot_events(time, (self.originals, self.actions, self.generated))
+        self.display.plot_book((self.book.bids, self.book.asks))
+        # self.display.plot_score(t, self.agent.history['score'])
+        # self.display.plot_inventory(t, self.agent.history['inventory'])
+        # self.display.plot_orders(t, self.agent.orders)
+        self.display.draw()
+
+    def to_order(self, node, timestamp):
         """Convert an event to an order"""
-        nodes = [('add', 'bid', -1),
-                 ('add', 'bid', 0),
-                 ('add', 'bid', 1),
-                 ('add', 'ask', -1),
-                 ('add', 'ask', 0),
-                 ('add', 'ask', 1),
-                 ('delete', 'bid', 0),
-                 ('delete', 'bid', 1),
-                 ('delete', 'ask', 0),
-                 ('delete', 'ask', 1),
-                 ('execute', 'bid', None),
-                 ('execute', 'ask', None)]
+        nodes = [('limit', 'bid', -1),
+                 ('limit', 'bid', 0),
+                 ('limit', 'bid', 1),
+                 ('limit', 'ask', -1),
+                 ('limit', 'ask', 0),
+                 ('limit', 'ask', 1),
+                 ('cancel', 'bid', 0),
+                 ('cancel', 'bid', 1),
+                 ('cancel', 'ask', 0),
+                 ('cancel', 'ask', 1),
+                 ('market', 'bid', None),
+                 ('market', 'ask', None)]
         label, side, level = nodes[node]
-        if label == 'add':
+        if label == 'limit':
             if level == -1:
                 if side == 'bid':
                     price = self.book.prices()[side][0] + 1
@@ -533,22 +739,24 @@ class Simulator():
             else:
                 price = self.book.prices()[side][level]
             shares = np.random.choice([100, 200, 300])
-            order = Order(label, side, price, shares, None)
-        elif label == 'delete':
+            order = Order(timestamp, label, side, price, shares, None)
+        elif label == 'cancel':
             price = self.book.prices()[side][level]
             if side == 'bid':
                 order = np.random.choice(self.book.bids[price])
             elif side == 'ask':
                 order = np.random.choice(self.book.asks[price])
-            order.label = 'delete'
-        elif label == 'execute':
+            order.label = 'cancel'
+            order.timestamp = timestamp
+        elif label == 'market':
             shares = np.random.choice([10, 50, 100])
-            order = Order(label, side, None, shares, None)
+            order = Order(timestamp, label, side, None, shares, None)
         return order
 
 # Example
-def random_add_order():
-    label = 'add'
+def random_limit_order():
+    timestamp = -1
+    label = 'limit'
     side = np.random.choice(['bid', 'ask'])
     if side == 'bid':
         price = np.random.choice(np.arange(2991, 3003, 1, dtype='int'))
@@ -556,18 +764,18 @@ def random_add_order():
         price = np.random.choice(np.arange(2998, 3011, 1, dtype='int'))
     shares = np.random.choice(np.arange(100, 400, 100))
     refno = None
-    return Order(label, side, price, shares, refno)
+    return Order(timestamp, label, side, price, shares, refno)
 
 N = 20
 orders = []
 n = 0
 book = OrderBook()
 while n < N:
-    order = random_add_order()
+    order = random_limit_order()
     print('{}'.format(order))
     if order.refno not in [order.refno for order in orders] and order.refno is not None:
         orders.append(order)
-    if order.label == 'delete':
+    if order.label == 'cancel':
         for o in orders:
             if o.refno == order.refno:
                 orders.remove(o)
@@ -593,6 +801,5 @@ model = NetworkPoisson(N=N, dt_max=1.0, params={'lamb': lambda0, 'weights': W, '
 agent = Agent([None, 0, 1])
 simulator = Simulator(book, model, agent, dt)
 simulator.generate_events(t_max)
-simulator.live_plot(0)
-input()
-simulator.run(t_max)
+simulator.plot(0, pause=True)
+simulator.run(t_max, pause=True)
