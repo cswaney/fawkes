@@ -17,13 +17,13 @@ class Display():
     def __init__(self, **kwargs):
 
         plt.ion()
-        plt.rc('font', size=8, family='Arial')
+        plt.rc('font', size=10, family='Arial')
 
         self.events_ax = plt.subplot2grid((6,2), (0,0), rowspan=3)
         self.book_ax = plt.subplot2grid((6,2), (3,0), rowspan=3)
-        self.score_ax = plt.subplot2grid((6,2), (0,1), rowspan=2)
-        self.inventory_ax = plt.subplot2grid((6,2), (2,1), rowspan=2)
-        self.orders_ax = plt.subplot2grid((6,2), (4,1), rowspan=2)
+        self.score_ax = plt.subplot2grid((6,2), (0,1), rowspan=3)
+        self.inventory_ax = plt.subplot2grid((6,2), (3,1), rowspan=3)
+        # self.orders_ax = plt.subplot2grid((6,2), (4,1), rowspan=2)
         plt.tight_layout()
 
         # Default kwargs
@@ -31,7 +31,7 @@ class Display():
         self.book_xlim, self.book_ylim = ([2990, 3010], [0, 2000])
         self.score_xlim, self.score_ylim = ([0, 5], [-1000000, 1000000])
         self.inv_xlim, self.inv_ylim = ([0, 5], [-1000, 1000])
-        self.orders_xlim, self.orders_ylim = ([2990], [3011])
+        # self.orders_xlim, self.orders_ylim = ([2990], [3011])
         self.pause = True
 
         # Set the xlim and ylim for axes using kwargs
@@ -46,21 +46,23 @@ class Display():
         g = [s for s in generated['times'] if s <= time]
 
         self.events_ax.clear()
-        self.events_ax.set_title('Events', loc='right')
+        self.events_ax.set_title('Events', loc='center')
+        # self.events_ax.text(.025, .925, 'Events', horizontalalignment='left', transform=self.events_ax.transAxes)
         self.events_ax.set_xlim(self.events_xlim[0], self.events_xlim[1])
         self.events_ax.set_ylim(0, 4)
         self.events_ax.set_yticks([1, 2, 3], ['Originals', 'Actions', 'Generated'])
         self.events_ax.tick_params(direction='in')
 
-        _ = self.events_ax.scatter(originals['times'], [1] * len(originals['times']), color='C0', alpha=0.25)
-        _ = self.events_ax.scatter(o, [1] * len(o), color='C0', marker='x')
-        _ = self.events_ax.scatter(a, [2] * len(a), color='C1', marker='x')
-        _ = self.events_ax.scatter(g, [3] * len(g), color='C2', marker='x')
+        _ = self.events_ax.scatter(originals['times'], [1] * len(originals['times']), s=30, color='C0', alpha=0.25)
+        _ = self.events_ax.scatter(o, [1] * len(o), s=30, color='C0')
+        _ = self.events_ax.scatter(a, [2] * len(a), s=30, color='C1')
+        _ = self.events_ax.scatter(g, [3] * len(g), s=30, color='C2')
 
     def plot_book(self, book):
 
         self.book_ax.clear()
-        self.book_ax.set_title('Books', loc='right')
+        self.book_ax.set_title('Books', loc='center')
+        # self.book_ax.text(.025, .925, 'Book', horizontalalignment='left', transform=self.book_ax.transAxes)
         self.book_ax.set_xlim(self.book_xlim[0], self.book_xlim[1])
         self.book_ax.set_xticks(range(self.book_xlim[0], self.book_xlim[1] + 1, 2))
         self.book_ax.set_ylim(self.book_ylim[0], self.book_ylim[1])
@@ -86,23 +88,31 @@ class Display():
             else:
                 b = [sum(h[:i]) for i,_ in enumerate(h)]
                 # print('x={}\nh={}\nb={}'.format(x, h, b))
-            _ = self.book_ax.bar(x, h, bottom=b, width=1, color='C2', edgecolor='white', linewidth=1)
+            _ = self.book_ax.bar(x, h, bottom=b, width=1, color='C1', edgecolor='white', linewidth=1)
 
-    def plot_score(self, time, score):
-        # self.score_ax.clear()
-        self.score_ax.set_title('Score', loc='right')
+    def plot_score(self, hist):
+        times = [x for x in hist]
+        scores = [x['score'] for x in hist.values()]
+
+        self.score_ax.clear()
+        self.score_ax.set_title('Score', loc='center')
+        # self.score_ax.text(.025, .925, 'Score', horizontalalignment='left', transform=self.score_ax.transAxes)
         self.score_ax.set_xlim(self.score_xlim[0], self.score_xlim[1])
-        self.score_ax.set_ylim(self.score_ylim[0], self.score_ylim[1])
+        # self.score_ax.set_ylim(self.score_ylim[0], self.score_ylim[1])
         self.score_ax.tick_params(right=True, left=False, labelright=True, labelleft=False, direction='in')
-        _ = self.score_ax.scatter(time, score, color='C0', marker='_')
+        _ = self.score_ax.plot(times, scores, color='C0', linestyle='--', linewidth=1.25)
 
-    def plot_inventory(self, time, inventory):
-        # self.inventory_ax.clear()
-        self.inventory_ax.set_title('Inventory', loc='right')
+    def plot_inventory(self, hist):
+        times = [x for x in hist]
+        inventories = [x['inventory'] for x in hist.values()]
+
+        self.inventory_ax.clear()
+        self.inventory_ax.set_title('Inventory', loc='center')
+        # self.inventory_ax.text(.025, .925, 'Inventory', horizontalalignment='left', transform=self.inventory_ax.transAxes)
         self.inventory_ax.set_xlim(self.inv_xlim[0], self.inv_xlim[1])
-        self.inventory_ax.set_ylim(self.inv_ylim[0], self.inv_ylim[1])
+        # self.inventory_ax.set_ylim(self.inv_ylim[0], self.inv_ylim[1])
         self.inventory_ax.tick_params(right=True, left=False, labelright=True, labelleft=False, direction='in')
-        _ = self.inventory_ax.scatter(time, inventory, color='C0', marker='_')
+        _ = self.inventory_ax.plot(times, inventories, color='C0', linestyle='--', linewidth=1.25)
 
     def plot_orders(self, time, orders):
         self.orders_ax.clear()
@@ -543,6 +553,7 @@ class Agent():
         self.orders = orders
         self.algorithm = algorithm
         self.time = 0
+        self.history = {0: {'score': 0, 'inventory': 0}}
 
     def reset(self):
         self.score = 0
@@ -550,7 +561,7 @@ class Agent():
         self.orders = []
         self.time = 0
 
-    def choose_action(self, data):
+    def choose_action(self, time, data):
         """Choose an action using algorithm.
 
         Valid algorithms must be of the form:
@@ -569,6 +580,7 @@ class Agent():
             print('Agent received EVENT: <Event(time={}, node={})>'.format(round(time, 3), node))
         # for message in messages:
             # print('Agent received MESSAGE: {}'.format(message))
+        self.history[time] = {'score': self.score, 'inventory': self.inventory}
         return np.random.choice(self.actions, p=[0.999, 0.0005, 0.0005])
         # return self.algorithm(self.actions)
 
@@ -592,7 +604,7 @@ class Agent():
                     match.shares -= message.shares
                     print('Agent updated ORDER {}'.format(match))
                     if match.shares == 0:
-                        self.orders.pop(match)
+                        self.orders.remove(match)
                         print('(The order was popped)')
                     if message.side == 'ask':
                         self.score += message.shares * message.price
@@ -600,6 +612,7 @@ class Agent():
                     elif message.side == 'bid':
                         self.score -= message.shares * message.price
                         self.inventory += message.shares
+                    self.history[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
 
     def confirm_order(self, order, messages):
         """Confirm agent order was processed, and update self.
@@ -626,7 +639,7 @@ class Agent():
                         match.shares -= message.shares
                         print('Agent updated ORDER {}'.format(match))
                         if match.shares == 0:
-                            self.orders.pop(match)
+                            self.orders.remove(match)
                             print('(The order was popped)')
                         if message.side == 'ask':
                             self.score += message.shares * message.price
@@ -634,11 +647,12 @@ class Agent():
                         elif message.side == 'bid':
                             self.score -= message.shares * message.price
                             self.inventory += message.shares
+                        self.history[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
                     if message.label == 'delete':
                         assert order.refno == message.refno, 'confirm_order receive non-matching ORDER and MESSAGE reference numbers'
                         match = self.orders[[o.refno for o in self.orders].index(message.refno)]
                         print('Agent deleted ORDER {}'.format(match))
-                        self.orders.pop(match)
+                        self.orders.remove(match)
 
 class Simulator():
 
@@ -697,9 +711,9 @@ class Simulator():
                 print('>> Updating book for ORDER ({})'.format(order))
                 messages = self.book.update(order)
                 self.agent.update_orders(messages)
-                self.plot(t, pause)
+                # self.plot(t, pause)
             # Choose an action
-            action = self.agent.choose_action(events)  # Agent can decide what to do with data!
+            action = self.agent.choose_action(t, events)  # Agent can decide what to do with data!
             if action is not None:
                 i += 1  # Skip this event next iteration
                 print('Agent performed ACTION {}'.format(action))
@@ -709,7 +723,7 @@ class Simulator():
                 self.agent.confirm_order(order, messages)
                 events = self.generate_events(t_max, (t, action))
                 self.update_events(events)
-                self.plot(t, pause)
+                # self.plot(t, pause)
             t += self.dt
         print('Reached the end of simulation (t={})'.format(t_max))
         self.plot(t, pause=False)
@@ -812,8 +826,8 @@ class Simulator():
 
         self.display.plot_events(time, (self.originals, self.actions, self.generated))
         self.display.plot_book((self.book.bids, self.book.asks))
-        self.display.plot_score(time, self.agent.score)
-        self.display.plot_inventory(time, self.agent.inventory)
+        self.display.plot_score(self.agent.history)
+        self.display.plot_inventory(self.agent.history)
         # self.display.plot_orders(t, self.agent.orders)
         self.display.draw(pause)
 
