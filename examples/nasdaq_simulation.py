@@ -16,6 +16,12 @@ class Display():
 
     def __init__(self, **kwargs):
 
+        """
+        Keywords:
+            t_max: the maximum time to display.
+
+        """
+
         plt.ion()
         plt.rc('font', size=10, family='Arial')
 
@@ -27,10 +33,11 @@ class Display():
         plt.tight_layout()
 
         # Default kwargs
-        self.events_xlim, self.events_ylim = ([0, 5], [0, 4])
-        self.book_xlim, self.book_ylim = ([2990, 3010], [0, 2000])
-        self.score_xlim, self.score_ylim = ([0, 5], [-1000000, 1000000])
-        self.inv_xlim, self.inv_ylim = ([0, 5], [-1000, 1000])
+        self.t_max = 5
+        # self.events_xlim, self.events_ylim = ([0, 5], [0, 4])
+        self.book_xlim, self.book_ylim = ([2990, 3011], [0, 2000])
+        # self.score_xlim, self.score_ylim = ([0, 5], [-1000000, 1000000])
+        # self.inv_xlim, self.inv_ylim = ([0, 5], [-1000, 1000])
         # self.orders_xlim, self.orders_ylim = ([2990], [3011])
         self.pause = True
 
@@ -48,15 +55,17 @@ class Display():
         self.events_ax.clear()
         self.events_ax.set_title('Events', loc='center')
         # self.events_ax.text(.025, .925, 'Events', horizontalalignment='left', transform=self.events_ax.transAxes)
-        self.events_ax.set_xlim(self.events_xlim[0], self.events_xlim[1])
+        self.events_ax.set_xlim(0, self.t_max)
         self.events_ax.set_ylim(0, 4)
-        self.events_ax.set_yticks([1, 2, 3], ['Originals', 'Actions', 'Generated'])
+        # self.events_ax.set_yticks([1, 2, 3], ['Originals', 'Actions', 'Generated'])
+        self.events_ax.set_yticks([])
         self.events_ax.tick_params(direction='in')
 
         _ = self.events_ax.scatter(originals['times'], [1] * len(originals['times']), s=30, color='C0', alpha=0.25)
-        _ = self.events_ax.scatter(o, [1] * len(o), s=30, color='C0')
-        _ = self.events_ax.scatter(a, [2] * len(a), s=30, color='C1')
-        _ = self.events_ax.scatter(g, [3] * len(g), s=30, color='C2')
+        _ = self.events_ax.scatter(o, [1] * len(o), s=30, color='C0', label='Originals')
+        _ = self.events_ax.scatter(a, [2] * len(a), s=30, color='C1', label='Actions')
+        _ = self.events_ax.scatter(g, [3] * len(g), s=30, color='C2', label='Responses')
+        self.events_ax.legend()
 
     def plot_book(self, book):
 
@@ -64,11 +73,12 @@ class Display():
         self.book_ax.set_title('Books', loc='center')
         # self.book_ax.text(.025, .925, 'Book', horizontalalignment='left', transform=self.book_ax.transAxes)
         self.book_ax.set_xlim(self.book_xlim[0], self.book_xlim[1])
-        self.book_ax.set_xticks(range(self.book_xlim[0], self.book_xlim[1] + 1, 2))
+        self.book_ax.set_xticks(range(self.book_xlim[0] + 1, self.book_xlim[1], 2))
         self.book_ax.set_ylim(self.book_ylim[0], self.book_ylim[1])
         self.book_ax.tick_params(direction='in')
 
         bids, asks = book
+        bmax = 0
         for price in bids.keys():
             x = [price] * len(bids[price])
             h = [order.shares for order in bids[price]]
@@ -79,6 +89,9 @@ class Display():
                 b = [sum(h[:i]) for i,_ in enumerate(h)]
                 # print('x={}\nh={}\nb={}'.format(x, h, b))
             _ = self.book_ax.bar(x, h, bottom=b, width=1, color='C0', edgecolor='white', linewidth=1)
+            if np.sum(h) > bmax:
+                bmax = np.sum(h)
+        amax = 0
         for price in asks.keys():
             x = [price] * len(asks[price])
             h = [order.shares for order in asks[price]]
@@ -89,6 +102,10 @@ class Display():
                 b = [sum(h[:i]) for i,_ in enumerate(h)]
                 # print('x={}\nh={}\nb={}'.format(x, h, b))
             _ = self.book_ax.bar(x, h, bottom=b, width=1, color='C1', edgecolor='white', linewidth=1)
+            if np.sum(h) > amax:
+                amax = np.sum(h)
+        ymax = max(bmax, amax)
+        self.book_ax.set_ylim(0, np.ceil(ymax / 1000) * 1000)
 
     def plot_score(self, hist):
         times = [x for x in hist]
@@ -97,7 +114,7 @@ class Display():
         self.score_ax.clear()
         self.score_ax.set_title('Score', loc='center')
         # self.score_ax.text(.025, .925, 'Score', horizontalalignment='left', transform=self.score_ax.transAxes)
-        self.score_ax.set_xlim(self.score_xlim[0], self.score_xlim[1])
+        self.score_ax.set_xlim(0, self.t_max)
         # self.score_ax.set_ylim(self.score_ylim[0], self.score_ylim[1])
         self.score_ax.tick_params(right=True, left=False, labelright=True, labelleft=False, direction='in')
         _ = self.score_ax.plot(times, scores, color='C0', linestyle='--', linewidth=1.25)
@@ -109,7 +126,7 @@ class Display():
         self.inventory_ax.clear()
         self.inventory_ax.set_title('Inventory', loc='center')
         # self.inventory_ax.text(.025, .925, 'Inventory', horizontalalignment='left', transform=self.inventory_ax.transAxes)
-        self.inventory_ax.set_xlim(self.inv_xlim[0], self.inv_xlim[1])
+        self.inventory_ax.set_xlim(0, self.t_max)
         # self.inventory_ax.set_ylim(self.inv_ylim[0], self.inv_ylim[1])
         self.inventory_ax.tick_params(right=True, left=False, labelright=True, labelleft=False, direction='in')
         _ = self.inventory_ax.plot(times, inventories, color='C0', linestyle='--', linewidth=1.25)
@@ -581,7 +598,7 @@ class Agent():
         # for message in messages:
             # print('Agent received MESSAGE: {}'.format(message))
         self.history[time] = {'score': self.score, 'inventory': self.inventory}
-        return np.random.choice(self.actions, p=[0.999, 0.0005, 0.0005])
+        return np.random.choice(self.actions, p=[0.9988] + [0.0001] * 12)
         # return self.algorithm(self.actions)
 
     def update_orders(self, messages):
@@ -622,12 +639,12 @@ class Agent():
             messages: responses generated by the matching engine.
         """
         if messages is None:
-            print('Agent received confirmation MESSAGE: None; skipping')
-            pass
+            print('confirm_order received messages value: None; returning False')
+            return False
         else:
-            for message in messages:
+            for message in messages: # TODO: can messages == [None]?
                 if message is None:
-                    print('Unable to process the order; skipping')
+                    print('Agent received confirmation MESSAGE: None; skipping')
                 else:
                     print('Agent received confirmation MESSAGE: {}'.format(message))
                     if message.label == 'add':
@@ -653,6 +670,20 @@ class Agent():
                         match = self.orders[[o.refno for o in self.orders].index(message.refno)]
                         print('Agent deleted ORDER {}'.format(match))
                         self.orders.remove(match)
+            return True
+
+    def to_order(self, label, side, price):
+        """Return an order with the same side and price, if one exists"""
+        assert label == 'cancel', "to_order called with non-cancel order"
+        if side == 'bid':
+            orders = [o for o in self.orders if o.side == 'bid' and o.price == price]
+        if side == 'ask':
+            orders = [o for o in self.orders if o.side == 'ask' and o.price == price]
+        if orders == []:
+            print("Unable to find an order to delete; returning None")
+            return None
+        else:
+            return np.random.choice(orders)
 
 class Simulator():
 
@@ -671,6 +702,7 @@ class Simulator():
                 t_max: (int) maximum time of simulation.
                 event: type and time of an order book event.
         """
+        self.display.t_max = t_max
         if event is not None:
             # print('Generating new events...')
             # Find future events generated by the event; no background events!
@@ -692,6 +724,7 @@ class Simulator():
 
     def run(self, t_max, pause=True):
         """Apply algorithm to the sequence of order book states."""
+        self.display.t_max = t_max
         t = self.dt
         i = 0
         while t < t_max:
@@ -707,23 +740,26 @@ class Simulator():
                 print('Found {} EVENTs in interval ({}, {}): {}'.format(len(events), round(t - self.dt, 3), round(t, 3), events))
             # Update the book
             for time, node in events:
-                order = self.to_order(node, time)
+                order = self.to_order(node, time, agent=False)
                 print('>> Updating book for ORDER ({})'.format(order))
                 messages = self.book.update(order)
                 self.agent.update_orders(messages)
-                # self.plot(t, pause)
+                if pause:
+                    self.plot(t, pause=True)
             # Choose an action
             action = self.agent.choose_action(t, events)  # Agent can decide what to do with data!
             if action is not None:
-                i += 1  # Skip this event next iteration
-                print('Agent performed ACTION {}'.format(action))
-                order = self.to_order(action, t)
+                print('Agent chose ACTION {}'.format(action))
+                order = self.to_order(action, t, agent=True)
                 print('>> Updating book for ORDER ({})'.format(order))
                 messages = self.book.update(order)
-                self.agent.confirm_order(order, messages)
-                events = self.generate_events(t_max, (t, action))
-                self.update_events(events)
-                # self.plot(t, pause)
+                success = self.agent.confirm_order(order, messages)
+                if success:
+                    i += 1  # Skip this event next iteration
+                    events = self.generate_events(t_max, (t, action))
+                    self.update_events(events)
+                    if pause:
+                        self.plot(t, pause=True)
             t += self.dt
         print('Reached the end of simulation (t={})'.format(t_max))
         self.plot(t, pause=False)
@@ -752,7 +788,7 @@ class Simulator():
         self.nodes = [n for _,n in sorted(zip(self.times, self.nodes))]
         self.times = [t for t,_ in sorted(zip(self.times, self.nodes))]
 
-    def to_order(self, node, timestamp):
+    def to_order(self, node, timestamp, agent):
         """Convert an event to an order"""
         nodes = [('limit', 'bid', -1),
                  ('limit', 'bid', 0),
@@ -780,8 +816,18 @@ class Simulator():
                         price = self.book.prices()[side][0] + 1
                     elif side == 'ask':
                         price = self.book.prices()[side][0] - 1
-                else:
-                    price = self.book.prices()[side][level]
+                elif level == 0:
+                    if side == 'bid':
+                        price = self.book.prices()[side][0]
+                    elif side == 'ask':
+                        price = self.book.prices()[side][0]
+                if level == 1:
+                    if side == 'bid':
+                        price = self.book.prices()[side][0] - 1
+                    elif side == 'ask':
+                        price = self.book.prices()[side][0] + 1
+                # else:
+                #     price = self.book.prices()[side][level]
                 shares = np.random.choice([100, 200, 300])
                 order = Order(timestamp, label, side, price, shares, None)
         elif label == 'cancel':
@@ -791,13 +837,24 @@ class Simulator():
             elif len(self.book.prices()[side]) == 0:
                 print('Failed generate the order because the book is empty; returning None')
                 return None
-            price = self.book.prices()[side][level]
+            else:
+                price = self.book.prices()[side][level]
             if side == 'bid':
-                order = np.random.choice(self.book.bids[price])
+                if agent:
+                    order = self.agent.to_order(label, side, price)
+                else:
+                    order = np.random.choice(self.book.bids[price])
+                if order is not None:
+                    order.label = 'cancel'
+                    order.timestamp = timestamp
             elif side == 'ask':
-                order = np.random.choice(self.book.asks[price])
-            order.label = 'cancel'
-            order.timestamp = timestamp
+                if agent:
+                    order = self.agent.to_order(label, side, price)
+                else:
+                    order = np.random.choice(self.book.asks[price])
+                if order is not None:
+                    order.label = 'cancel'
+                    order.timestamp = timestamp
         elif label == 'market':
             shares = np.random.choice([10, 50, 100])
             order = Order(timestamp, label, side, None, shares, None)
@@ -844,7 +901,7 @@ def random_limit_order():
     refno = None
     return Order(timestamp, label, side, price, shares, refno)
 
-N = 20
+N = 50
 orders = []
 n = 0
 book = OrderBook()
@@ -861,7 +918,7 @@ while n < N:
     n += 1
 
 dt = 0.001
-t_max = 5
+t_max = 60
 
 N = 12
 lambda0 = 0.4 * np.ones(N)
@@ -876,8 +933,8 @@ tau = 1.0 * np.ones((N,N))
 # tau = 1.0 * np.ones((N,N))
 
 model = NetworkPoisson(N=N, dt_max=1.0, params={'lamb': lambda0, 'weights': W, 'mu': mu, 'tau': tau})
-agent = Agent([None, 0, 1])
+agent = Agent([None, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
 simulator = Simulator(book, model, agent, dt)
 simulator.generate_events(t_max)
-simulator.plot(0, pause=False)
+simulator.plot(0, pause=True)
 simulator.run(t_max, pause=False)
