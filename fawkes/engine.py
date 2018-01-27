@@ -628,6 +628,8 @@ class Agent():
         self.algorithm = None
         self.verbose = True
         self.uid = np.random.randint(low=0, high=100)
+        self.make_fee = 0
+        self.take_fee = 0
 
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -691,7 +693,7 @@ class Agent():
                 pass
             elif message.label == 'add' or message.label == 'delete':
                 print('(t={}) Agent received update MESSAGE: {}'.format(round(time, 3), message))
-            elif message.label == 'execute' and message.uid == self.uid:
+            elif message.label == 'execute' and message.uid == self.uid:  # agents limit order is hit
                 print('(t={}) Agent received update MESSAGE: {}'.format(round(time, 3), message))
                 match = self.orders[[o.refno for o in self.orders].index(message.refno)]
                 # print('About to delete {} shares from order {}'.format(message.shares, match))
@@ -703,10 +705,10 @@ class Agent():
                     self.orders.remove(match)
                     print('>> Removed the order')
                 if message.side == 'ask':
-                    self.score += message.shares * message.price
+                    self.score += (message.shares * message.price) + (message.shares * self.make_fee)
                     self.inventory -= message.shares
                 elif message.side == 'bid':
-                    self.score -= message.shares * message.price
+                    self.score -= (message.shares * message.price) + (message.shares * self.make_fee)
                     self.inventory += message.shares
                 self.data[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
 
@@ -740,12 +742,12 @@ class Agent():
                     if match.shares == 0:
                         self.orders.remove(match)
                         print('>> Removed the order')
-                elif message.label == 'execute':  # trade
+                elif message.label == 'execute':  # trade (following market order)
                     if order.side == 'bid':
-                        self.score -= message.shares * message.price
+                        self.score -= (message.shares * message.price) - (message.shares * self.take_fee)
                         self.inventory += message.shares
                     elif order.side == 'ask':
-                        self.score += message.shares * message.price
+                        self.score += (message.shares * message.price) - (message.shares * self.take_fee)
                         self.inventory -= message.shares
                     self.data[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
                 elif message.label == 'delete':
