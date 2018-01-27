@@ -200,7 +200,7 @@ class NetworkPoisson():
 
         # Generate parent events from background rates
         for n in range(self.N):
-            c = np.random.uniform(T, size=np.random.poisson(T * self.lamb[n]))
+            c = np.random.uniform(low=0, high=T, size=np.random.poisson(T * self.lamb[n]))
             background_events[n].extend(c)
             events.extend(background_events[n])
             nodes.extend([n] * len(c))
@@ -223,7 +223,6 @@ class NetworkPoisson():
             idx = np.argsort(events)
         return np.array(events)[idx], np.array(nodes)[idx]
 
-    # TODO
     def generate_data_from_parent(self, T, parent):
 
         def generate_children(parents, n, T):
@@ -236,13 +235,6 @@ class NetworkPoisson():
                     c = c[ p + c < T ]
                     children[m].extend(p + c)
             return children
-
-        # Generate parent events from background rates
-        # for n in range(self.N):
-        #     c = np.random.uniform(T, size=np.random.poisson(T * self.lamb[n]))
-        #     background_events[n].extend(c)
-        #     events.extend(background_events[n])
-        #     nodes.extend([n] * len(c))
 
         parents = [[] for n in range(self.N)]
         t,n = parent
@@ -268,7 +260,6 @@ class NetworkPoisson():
             idx = np.argsort(events)
         return np.array(events)[idx], np.array(nodes)[idx]
 
-    # TODO: Remove this method?
     def simulate_spike(self, T, parent_node, parent_time, units='s'):
 
         def generate_children(parents, n, T):
