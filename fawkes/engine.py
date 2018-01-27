@@ -868,12 +868,24 @@ class Environment():
         n = 0
         while n < self.N:
             order = random_limit_order()
-            # print('{}'.format(order))
+            if self.verbose:
+                print('{}'.format(order))
             self.book.update(order)
             n += 1
 
+        _, nodes = self.random_events()
+        print('Initializing book from {} events'.format(len(nodes)))
+        for node in nodes:
+            order = self.to_order(node)
+            print('>> Updating book for ORDER ({})'.format(order))
+            messages = self.book.update(order)
+
         self.generate_events()
         return self.t, self.book.shares(), [], False
+
+    def random_events(self):
+        times, nodes = self.model.generate_data(self.T)
+        return times, nodes
 
     def generate_events(self):
         times, nodes = self.model.generate_data(self.T)
@@ -1108,10 +1120,10 @@ W = 0.1 * np.eye(N)
 mu = -1.0 * np.ones((N,N))
 tau = 1.0 * np.ones((N,N))
 model = NetworkPoisson(N=N, dt_max=1.0, params={'lamb': lambda0, 'weights': W, 'mu': mu, 'tau': tau})
-agent = Agent(verbose=False, algorithm='market')
+agent = Agent(verbose=False)
 env = Environment(model, verbose=False)
 time, book, events, done = env.reset()
-plot(env, agent)
+plot(env, agent, pause=True)
 while not done:
     action = agent.choose_action(time, book, events)
     time, book, events, confirm, messages, done = env.step(action)
