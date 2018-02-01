@@ -133,32 +133,53 @@ class Display():
 
     def plot_orders(self, orders):
         """orders is a list of orders maintained by Agent"""
+        colors = {'bid': 'C0', 'ask': 'C1'}
         self.orders_ax.clear()
         self.orders_ax.set_title('Orders', loc='center')
-        if len(orders) > 0:
-            orders = sorted(orders, key=lambda x: x.price)
-            xmax = max(20, len(orders)) + 1
-            self.orders_ax.set_xlim(0, xmax)
-            self.orders_ax.set_ylim(0, max([o.shares for o in orders]) + 100)
-            prices = [o.price for o in orders]
-            self.orders_ax.set_xticks(range(0, xmax + 1))
-            self.orders_ax.set_xticklabels([''] + prices)
-            for i, order in enumerate(orders):
-                if order.side == 'bid':
-                    color = 'C0'
-                elif order.side == 'ask':
-                    color = 'C1'
-                _ = self.orders_ax.bar(i + 1,
-                                       order.shares,
-                                       width=1,
-                                       color=color,
-                                       edgecolor='white',
-                                       linewidth=1)
-        else:
-            self.orders_ax.set_xlim(0, 10)
-            self.orders_ax.set_xticks([])
-            self.orders_ax.set_xticklabels([])
-            self.orders_ax.set_ylim(0, 200)
+        if orders['bid'] is not None:
+            xmin = orders['bid'].price - 2
+            _ = self.orders_ax.bar(orders['bid'].price,
+                                   orders['bid'].shares,
+                                   width=1,
+                                   color=colors['bid'],
+                                   edgecolor='white',
+                                   linewidth=1)
+        if orders['ask'] is not None:
+            xmax = orders['ask'].price + 2
+            _ = self.orders_ax.bar(orders['ask'].price,
+                                   orders['ask'].shares,
+                                   width=1,
+                                   color=colors['ask'],
+                                   edgecolor='white',
+                                   linewidth=1)
+        self.orders_ax.set_xlim(2990, 3011)
+        self.orders_ax.set_ylim(0, 200)
+        self.orders_ax.set_xticks(np.arange(2991, 3011, 2))
+
+        # if len(orders) > 0:
+        #     orders = sorted(orders, key=lambda x: x.price)
+        #     xmax = max(20, len(orders)) + 1
+        #     self.orders_ax.set_xlim(0, xmax)
+        #     self.orders_ax.set_ylim(0, max([o.shares for o in orders]) + 100)
+        #     prices = [o.price for o in orders]
+        #     self.orders_ax.set_xticks(range(0, xmax + 1))
+        #     self.orders_ax.set_xticklabels([''] + prices)
+        #     for i, order in enumerate(orders):
+        #         if order.side == 'bid':
+        #             color = 'C0'
+        #         elif order.side == 'ask':
+        #             color = 'C1'
+        #         _ = self.orders_ax.bar(i + 1,
+        #                                order.shares,
+        #                                width=1,
+        #                                color=color,
+        #                                edgecolor='white',
+        #                                linewidth=1)
+        # else:
+        #     self.orders_ax.set_xlim(0, 10)
+        #     self.orders_ax.set_xticks([])
+        #     self.orders_ax.set_xticklabels([])
+        #     self.orders_ax.set_ylim(0, 200)
 
     def draw(self, pause=True):
         plt.draw()
@@ -191,38 +212,58 @@ class Message():
 class Order():
     """Used to update the order book."""
 
-    def __init__(self, timestamp, label, side, price, shares, refno=None, uid=None):
+    def __init__(self, timestamp, label, side, price, shares, newPrice=None, refno=None, uid=None):
         if label == 'cancel':
             assert refno is not None, 'Order (label=cancel) did not receive a reference number'
-        assert label in ('limit', 'cancel', 'market')
+        assert label in ('limit', 'cancel', 'market', 'replace'), "Order received invvalid argument label={}".format(label)
+        assert side in ('bid', 'ask'), "Order received invvalid argument side={}".format(side)
+        if price is not None:
+            assert price > 0, "Order received invvalid argument price={}".format(price)
+        if shares is not None:
+            assert shares > 0, "Order received invvalid argument shares={}".format(shares)
         self.timestamp = timestamp
         self.label = label
         self.side = side
         self.price = price
         self.shares = shares
-        self.uid = uid
-        if label == 'limit':
+        self.newPrice = newPrice
+        if label == 'limit' and refno is None:
             self.refno = np.random.randint(low=0, high=10 ** 9)
         else:
             self.refno = refno
+        self.uid = uid
 
     def __str__(self):
-        items = [round(self.timestamp, 3), self.label, self.side, self.price, self.shares, self.refno, self.uid]
-        return "<Order(timestamp={}, label='{}', side='{}', price={}, shares={}, refno={}, uid={})>".format(*items)
+        items = [round(self.timestamp, 3),
+                 self.label,
+                 self.side,
+                 self.price,
+                 self.shares,
+                 self.newPrice,
+                 self.refno,
+                 self.uid]
+        return "<Order(timestamp={}, label='{}', side='{}', price={}, shares={}, newPrice={}, refno={}, uid={})>".format(*items)
 
     def __repr__(self):
-        items = [round(self.timestamp, 3), self.label, self.side, self.price, self.shares, self.refno, self.uid]
-        return "<Order(timestamp={}, label='{}', side='{}', price={}, shares={}, refno={}, uid={})>".format(*items)
+        items = [round(self.timestamp, 3),
+                 self.label,
+                 self.side,
+                 self.price,
+                 self.shares,
+                 self.newPrice,
+                 self.refno,
+                 self.uid]
+        return "<Order(timestamp={}, label='{}', side='{}', price={}, shares={}, newPrice={}, refno={}, uid={})>".format(*items)
 
     def copy(self):
-        order = Order(self.timestamp,
-                      self.label,
-                      self.side,
-                      self.price,
-                      self.shares,
-                      self.refno,
-                      self.uid)
-        order.refno = self.refno
+        order = Order(timestamp=self.timestamp,
+                      label=self.label,
+                      side=self.side,
+                      price=self.price,
+                      shares=self.shares,
+                      newPrice=self.newPrice,
+                      refno=self.refno,
+                      uid=self.uid)
         return order
 
 class OrderBook():
@@ -294,6 +335,8 @@ class OrderBook():
                 return message
         elif order.label == 'market':
             return self.execute_order(order)
+        elif order.label == 'replace':
+            return self.replace_order(order)
 
     def add_order(self, order):
         """Process an add order."""
@@ -396,7 +439,7 @@ class OrderBook():
 
     def execute_order(self, order):
         """Process a market order."""
-        assert order.label == 'market', "execute_order recieved a {} order.".format(order.label)
+        assert order.label == 'market', "execute_order received a {} order.".format(order.label)
         if order.side == 'bid':
             side = 'ask'
         elif order.side == 'ask':
@@ -453,6 +496,50 @@ class OrderBook():
         else:
             print(">> MARKET order was not executed (no match found); returning None")
             return None
+
+    def replace_order(self, order):
+        assert order.label == 'replace', "replace_order received a {} order.".format(order.label)
+        cancel_order = Order(timestamp=order.timestamp,
+                             label='cancel',
+                             side=order.side,
+                             price=order.price,
+                             shares=order.shares,
+                             refno=order.refno,
+                             uid=order.uid)
+        limit_order = Order(timestamp=order.timestamp,
+                            label='limit',
+                            side=order.side,
+                            price=order.newPrice,
+                            shares=order.shares,
+                            uid=order.uid)
+        del_message = self.delete_order(cancel_order)
+        if del_message is None:
+            print("Unable to process delete part of replace order; returning None")
+            return None
+        else:
+            add_message = self.add_order(limit_order)
+            if add_message is None:
+                print("Unable to process add part of replace order;")
+                return None  # NOTE: this should produce an error because the order was deleted!
+            else:
+                return [del_message, add_message]
+
+    def split_order(self, order):
+        assert order.label == 'replace', "replace_order received a {} order.".format(order.label)
+        cancel_order = Order(timestamp=order.timestamp,
+                             label='cancel',
+                             side=order.side,
+                             price=order.price,
+                             shares=order.shares,
+                             refno=order.refno,
+                             uid=order.uid)
+        limit_order = Order(timestamp=order.timestamp,
+                            label='limit',
+                            side=order.side,
+                            price=order.newPrice,
+                            shares=order.shares,
+                            uid=order.uid)
+        return cancel_order, limit_order
 
     def get_best(self, side):
         """Return the best offer on a given side of the book."""
@@ -849,7 +936,7 @@ class Agent():
 
 class MarketMaker(Agent):
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         Agent.__init__(self)
         self.orders = {'bid': None, 'ask': None}
         self.actions = [None,
@@ -866,9 +953,10 @@ class MarketMaker(Agent):
         action = np.random.choice(self.actions, p=[0.999] + [0.001 / 8] * 8)
         if action is not None:
             label = action['label']
-            print(label)
             side = action['side']
             if label == 'limit':
+                if self.orders[side] is not None:
+                    return None
                 if len(book['bid']) == 0 and len(book['ask']) == 0:
                     print('The book is empty; returning None')
                     return None
@@ -883,14 +971,25 @@ class MarketMaker(Agent):
                     elif side == 'ask':
                         if len(book['ask']) == 0:
                             print('The ask side of book is empty')
-                            price = min(book['bid']) + np.random.choice((1, 2))
+                            price = max(book['bid']) + np.random.choice((1, 2))
                         else:
                             price = min(book['ask']) + np.random.choice((-1, 0))
-                    return Order(time, label, side, price, shares, uid=self.uid)
+                    return Order(timestamp=time,
+                                 label=label,
+                                 side=side,
+                                 price=price,
+                                 shares=shares,
+                                 uid=self.uid)
             if label == 'cancel':
                 order = self.orders[side]
                 if order is not None:
-                    return Order(time, label, side, order.price, order.shares, order.refno, order.uid)
+                    return Order(timestamp=time,
+                                 label=label,
+                                 side=side,
+                                 price=order.price,
+                                 shares=order.shares,
+                                 refno=order.refno,
+                                 uid=order.uid)
                 else:
                     print('No {} order to cancel; returning None'.format(side))
                     return None
@@ -901,29 +1000,46 @@ class MarketMaker(Agent):
                     print('No {} orders to execute against; returning None'.format(side))
                     return None
                 else:
-                    price = min(book[side])
+                    if side == 'bid':
+                        price = max(book[side])
+                    elif side == 'ask':
+                        price = min(book[side])
                     shares = min(book[side][price], 100)
                 return Order(time, label, side, price, shares, uid=self.uid)
             if label == 'replace':
                 order = self.orders[side]
                 if order is not None:
-                    cancel_order = Order(time,
-                                         'cancel',
-                                         side,
-                                         order.price,
-                                         order.shares,
-                                         order.refno,
-                                         order.uid)
-                    limit_order = Order(time,
-                                        'limit',
-                                        side,
-                                        order.price + np.random.choice((-1,1)),
-                                        order.shares,
-                                        uid=order.uid)
-                    return (cancel_order, limit_order)
+                    return Order(timestamp=time,
+                                 label='replace',
+                                 side=side,
+                                 price=order.price,
+                                 shares=order.shares,
+                                 newPrice=order.price + np.random.choice((-1,1)),
+                                 refno=order.refno,
+                                 uid=order.uid)
                 else:
                     print('No {} order to replace; returning None'.format(side))
                     return None
+
+                # order = self.orders[side]
+                # if order is not None:
+                #     cancel_order = Order(time,
+                #                          'cancel',
+                #                          side,
+                #                          order.price,
+                #                          order.shares,
+                #                          order.refno,
+                #                          order.uid)
+                #     limit_order = Order(time,
+                #                         'limit',
+                #                         side,
+                #                         order.price + np.random.choice((-1,1)),
+                #                         order.shares,
+                #                         uid=order.uid)
+                #     return (cancel_order, limit_order)
+                # else:
+                #     print('No {} order to replace; returning None'.format(side))
+                #     return None
 
     def update_orders(self, time, feed):
         """Update agent based on external events, and update self. The agent only needs to
@@ -935,8 +1051,9 @@ class MarketMaker(Agent):
         """
 
         if feed == []:
-            if self.verbose:
-                print('(t={}) Agent received empty message feed; skipping'.format(round(time, 3)))
+            pass
+            # if self.verbose:
+                # print('(t={}) Agent received empty message feed; skipping'.format(round(time, 3)))
         for message in feed:
             if message is None:
                 if self.verbose:
@@ -946,7 +1063,7 @@ class MarketMaker(Agent):
                 print('(t={}) Agent received update MESSAGE: {}'.format(round(time, 3), message))
             elif message.label == 'execute' and message.uid == self.uid:
                 print('(t={}) Agent received update MESSAGE: {}'.format(round(time, 3), message))
-                match = self.order[message.side]
+                match = self.orders[message.side]
                 assert match.refno == message.refno, "update received execute with non-matching refno"
                 match.shares -= message.shares
                 assert match.shares >= 0, "Match shares less than zero!"
@@ -971,17 +1088,29 @@ class MarketMaker(Agent):
             messages: list of messages generated by the matching engine.
         """
         if confirm == []:
-            if self.verbose:
-                print('(t={}) Agent received empty confirmation feed; skipping'.format(round(time, 3)))
+            pass
+            # if self.verbose:
+                # print('(t={}) Agent received empty confirmation feed; skipping'.format(round(time, 3)))
         for message in confirm:
             if message is None:
                 print('(t={}) Agent received confirmation MESSAGE: None; skipping'.format(round(time, 3)))
             else:
                 print('(t={}) Agent received confirmation MESSAGE: {}'.format(round(time, 3), message))
                 if message.label == 'add':
-                    assert order.refno == message.refno, '>> confirm_order receive non-matching reference numbers'
-                    self.add_order(order)
-                    print('>> Added ORDER {}'.format(order))
+                    if order.label != 'replace':
+                        assert order.refno == message.refno, '>> confirm_order receive non-matching reference numbers'
+                        self.add_order(order)
+                        print('>> Added ORDER {}'.format(order))
+                    else:
+                        order = Order(timestamp=message.timestamp,
+                                      label='limit',
+                                      side=message.side,
+                                      price=message.price,
+                                      shares=message.shares,
+                                      uid=message.uid)
+                        order.refno = message.refno
+                        self.add_order(order)
+                        print('>> Added ORDER {}'.format(order))
                 elif message.label == 'execute':
                     if message.uid == self.uid:
                         match = self.orders[message.side]
@@ -1005,7 +1134,6 @@ class MarketMaker(Agent):
                     match = self.orders[message.side]
                     assert match.refno == message.refno, ">> confirm_order received delete with non-matching refno"
                     self.cancel_order(match)
-                    match = self.orders[[o.refno for o in self.orders].index(message.refno)]
                     print('>> Deleted ORDER {}'.format(match))
 
     def cancel_order(self, order):
@@ -1013,7 +1141,7 @@ class MarketMaker(Agent):
         self.orders[order.side] = None
 
     def add_order(self, order):
-        assert self.orders[order.side] is None, "Agent already has a {} order".format(side)
+        assert self.orders[order.side] is None, "Agent already has a {} order".format(order.side)
         self.orders[order.side] = order.copy()
 
 class Environment():
@@ -1135,16 +1263,36 @@ class Environment():
         # Execute action; generate new events
         confirm = []
         if action is not None:
-            print('(t={}) Agent submitted ORDER {}'.format(round(self.t, 3), action))
-            event = self.to_event(action)
-            if event is not None:
-                # print('(t={}) Agent chose EVENT {}'.format(round(self.t, 3), event))
-                print('>> Updating book ...'.format(action))
-                messages = self.book.update(action)
-                if messages is not None:
-                    confirm.extend(messages)
-                    self.cursor += 1  # skip this event next iteration
-                    self.update_events(self.generate_children((self.t, event)))
+            if action.label == 'replace':
+                print('(t={}) Agent submitted ORDER {}'.format(round(self.t, 3), action))
+                cancel_order, limit_order = self.book.split_order(action)
+                event = self.to_event(cancel_order)
+                if event is not None:
+                    print('>> Updating book ...'.format(cancel_order))
+                    messages = self.book.update(cancel_order)
+                    if messages is not None:
+                        confirm.extend(messages)
+                        self.cursor += 1  # skip this event next iteration
+                        self.update_events(self.generate_children((self.t, event)))
+                    event = self.to_event(limit_order)
+                    if event is not None:
+                        print('>> Updating book ...'.format(limit_order))
+                        messages = self.book.update(limit_order)
+                        if messages is not None:
+                            confirm.extend(messages)
+                            self.cursor += 1  # skip this event next iteration
+                            self.update_events(self.generate_children((self.t, event)))
+            else:
+                print('(t={}) Agent submitted ORDER {}'.format(round(self.t, 3), action))
+                event = self.to_event(action)
+                if event is not None:
+                    # print('(t={}) Agent chose EVENT {}'.format(round(self.t, 3), event))
+                    print('>> Updating book ...'.format(action))
+                    messages = self.book.update(action)
+                    if messages is not None:
+                        confirm.extend(messages)
+                        self.cursor += 1  # skip this event next iteration
+                        self.update_events(self.generate_children((self.t, event)))
 
         # Update time; check for end of simulation
         self.t += self.dt
@@ -1274,7 +1422,13 @@ class Environment():
                 return 10
             elif order.side == 'ask':
                 return 11
-
+        elif order.label == 'replace':
+            return self.to_event(Order(order.timestamp,
+                                       'add',
+                                       order.side,
+                                       order.newPrice,
+                                       order.shares,
+                                       order.uid))  # NOTE: model doesn't include replace orders yet
         print("Order did not match any event; returning None")
         return None
 
@@ -1315,11 +1469,11 @@ model = NetworkPoisson(N=N, dt_max=1.0, params={'lamb': lambda0, 'weights': W, '
 agent = MarketMaker(verbose=False)
 env = Environment(model, verbose=False)
 time, book, events, done = env.reset()
-plot(env, agent, pause=True)
+# plot(env, agent, pause=True)
 while not done:
     action = agent.choose_action(time, book, events)
     time, book, events, confirm, messages, done = env.step(action)
     result = agent.update(time, action, confirm, messages, done)
-    if (action is not None) or (events != []):
-        plot(env, agent, pause=True)
+    # if (action is not None) or (events != []):
+    #     plot(env, agent, pause=True)
 plot(env, agent)
