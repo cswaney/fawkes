@@ -14,6 +14,14 @@ def random_limit_order(bmin=2991, bmax=3003, amin=2998, amax=3011):
         price = np.random.choice(np.arange(amin, amax, dtype='int'))
     return Order(-1, 'limit', side, price, shares, None)
 
+def plot(env, agent, pause=False):
+    env.display.plot_events(env.t, (env.originals, env.actions, env.generated))
+    env.display.plot_book((env.book.bids, env.book.asks))
+    env.display.plot_score(agent.history)
+    env.display.plot_inventory(agent.history)
+    # env.display.plot_orders(agent.orders)
+    env.display.draw(pause)
+
 class Display():
 
     # TODO: Have axes setup on creation.
@@ -193,6 +201,8 @@ class Message():
     def __init__(self, timestamp, label, side, price, shares, refno, uid=None):
         assert refno is not None, 'Message did not receive a reference number'
         assert label in ('add', 'delete', 'execute'), 'Message received an invalid label (valid labels are: add, delete, and execute)'
+        assert price > 0, "Message received invalid price={}".format(price)
+        assert shares > 0, "Message received invalid price={}".format(shares)
         self.timestamp = timestamp
         self.label = label
         self.side = side
@@ -216,11 +226,11 @@ class Order():
         if label == 'cancel':
             assert refno is not None, 'Order (label=cancel) did not receive a reference number'
         assert label in ('limit', 'cancel', 'market', 'replace'), "Order received invvalid argument label={}".format(label)
-        assert side in ('bid', 'ask'), "Order received invvalid argument side={}".format(side)
+        assert side in ('bid', 'ask'), "Order received invalid argument side={}".format(side)
         if price is not None:
-            assert price > 0, "Order received invvalid argument price={}".format(price)
+            assert price > 0, "Order received invalid argument price={}".format(price)
         if shares is not None:
-            assert shares > 0, "Order received invvalid argument shares={}".format(shares)
+            assert shares > 0, "Order received invalid argument shares={}".format(shares)
         self.timestamp = timestamp
         self.label = label
         self.side = side
@@ -339,7 +349,10 @@ class OrderBook():
             return self.replace_order(order)
 
     def add_order(self, order):
-        """Process an add order."""
+        """Process an add order.
+
+           Returns: Message, or None
+        """
         assert order.label == 'limit', "add_order received a {} order.".format(order.label)
         assert order.side in ('bid', 'ask'), "add_order received an order with an invalid side"
         if order.side == 'bid':
@@ -394,7 +407,10 @@ class OrderBook():
                                uid=order.uid)
 
     def delete_order(self, order):
-        """Process a delete order."""
+        """Process a delete order.
+
+           Return: Message, or None.
+        """
         assert order.label == 'cancel', "delete_order received a {} order.".format(order.label)
         if order.side == 'bid':
             try:
@@ -438,7 +454,10 @@ class OrderBook():
                 return None
 
     def execute_order(self, order):
-        """Process a market order."""
+        """Process a market order.
+
+           Returns: list of Messages, or None.
+        """
         assert order.label == 'market', "execute_order received a {} order.".format(order.label)
         if order.side == 'bid':
             side = 'ask'
@@ -498,7 +517,33 @@ class OrderBook():
             return None
 
     def replace_order(self, order):
+        """
+           Returns: list of Messages, or None.
+        """
+
         assert order.label == 'replace', "replace_order received a {} order.".format(order.label)
+
+        # Check that delete is possible
+        if order.side == 'bid':
+            if order.refno not in [o.refno for o in self.bids[order.price]]:
+                return None
+        elif order.side == 'ask':
+            if order.refno not in [o.refno for o in self.asks[order.price]]:
+                return None
+
+        # Check that add is possible
+        if order.side == 'bid':
+            if len(self.asks.keys()) > 0:
+                if not order.price < min(self.asks.keys()):
+                    print(">> LIMIT BID received at or above best ask; returning None")
+                    return None
+        elif order.side == 'ask':
+            if len(self.bids.keys()) > 0:
+                if not order.price > max(self.bids.keys()):
+                    print(">> LIMIT ASK received at or below best bid; returning None")
+                    return None
+
+        # Create orders
         cancel_order = Order(timestamp=order.timestamp,
                              label='cancel',
                              side=order.side,
@@ -512,17 +557,11 @@ class OrderBook():
                             price=order.newPrice,
                             shares=order.shares,
                             uid=order.uid)
+
+        # Process orders
         del_message = self.delete_order(cancel_order)
-        if del_message is None:
-            print("Unable to process delete part of replace order; returning None")
-            return None
-        else:
-            add_message = self.add_order(limit_order)
-            if add_message is None:
-                print("Unable to process add part of replace order;")
-                return None  # NOTE: this should produce an error because the order was deleted!
-            else:
-                return [del_message, add_message]
+        add_message = self.add_order(limit_order)
+        return [del_message, add_message]
 
     def split_order(self, order):
         assert order.label == 'replace', "replace_order received a {} order.".format(order.label)
@@ -721,13 +760,13 @@ class Agent():
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-        self.data = {0: {'score': self.score, 'inventory': self.inventory}}
+        self.history = {0: {'score': self.score, 'inventory': self.inventory}}
 
     def reset(self):
         self.score = 0
         self.inventory = 0
         self.orders = []
-        self.data = {0: {'score': self.score, 'inventory': self.inventory}}
+        self.history = {0: {'score': self.score, 'inventory': self.inventory}}
 
     def choose_action(self, time, book, events):
         """Choose an action using algorithm.
@@ -757,7 +796,7 @@ class Agent():
 
     def update(self, time, action, confirm, feed, done):
         if done:  # record the final score and inventory
-            self.data[time] = {'score': self.score, 'inventory': self.inventory}
+            self.history[time] = {'score': self.score, 'inventory': self.inventory}
         self.confirm_order(time, action, confirm)
         self.update_orders(time, feed)
 
@@ -797,7 +836,7 @@ class Agent():
                 elif message.side == 'bid':
                     self.score -= (message.shares * message.price) + (message.shares * self.make_fee)
                     self.inventory += message.shares
-                self.data[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
+                self.history[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
 
     # TODO: only pass the message reference number?
     def confirm_order(self, time, order, confirm):
@@ -837,7 +876,7 @@ class Agent():
                     elif order.side == 'ask':
                         self.score += (message.shares * message.price) - (message.shares * self.take_fee)
                         self.inventory -= message.shares
-                    self.data[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
+                    self.history[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
                 elif message.label == 'delete':
                     assert order.refno == message.refno, '>> confirm_order receive non-matching ORDER and MESSAGE reference numbers'
                     match = self.orders[[o.refno for o in self.orders].index(message.refno)]
@@ -846,15 +885,23 @@ class Agent():
 
     def default_algo(self, time, book, events):
         """
+            Args:
+                book: object returned by OrderBook.shares()
+                events: list of (double, int) tuples
 
-            book: object returned by OrderBook.shares()
+            Returns:
+                Order
         """
 
         action = np.random.choice(self.actions, p=[0.999] + [0.001 / 6] * 6)
         if action is not None:
+
+            label = action['label']
+            side = action['side']
+
             if action['label'] == 'limit':
                 shares = 100
-                if action['side'] == 'bid':
+                if side == 'bid':
                     if len(book['bid']) == 0 and len(book['ask']) == 0:
                         print('The book is empty; returning None')
                         return None
@@ -863,7 +910,7 @@ class Agent():
                         price = min(book['ask']) - np.random.choice((1, 2))
                     else:
                         price = max(book['bid']) + np.random.choice((-1, 0, 1))
-                elif action['side'] == 'ask':
+                elif side == 'ask':
                     if len(book['ask']) == 0 and len(book['bid']) == 0:
                         print('The book is empty; returning None')
                         return None
@@ -872,7 +919,12 @@ class Agent():
                         price = min(book['bid']) + np.random.choice((1, 2))
                     else:
                         price = min(book['ask']) + np.random.choice((-1, 0, 1))
-                return Order(time, action['label'], action['side'], price, shares, uid=self.uid)
+                return Order(timestamp=time,
+                             label=label,
+                             side=side,
+                             price=price,
+                             shares=shares,
+                             uid=self.uid)
             if action['label'] == 'cancel':
                 if action['side'] == 'bid':
                     if len(book['bid']) == 0:
@@ -888,8 +940,14 @@ class Agent():
                         price = min(book['ask']) + np.random.choice((0, 1))
                 orders = [o for o in self.orders if o.price == price]
                 if len(orders) > 0:
-                    order = orders[np.random.choice([0, -1])]
-                    return Order(time, action['label'], order.side, order.price, order.shares, order.refno, uid=self.uid)
+                    order = orders[np.random.choice([0, -1])]  # TODO: just pick any?
+                    return Order(timestamp=time,
+                                 label=label,
+                                 side=side,
+                                 price=order.price,
+                                 shares=order.shares,
+                                 refno=order.refno,
+                                 uid=self.uid)
                 else:
                     print('No orders to cancel at selected price; returning None')
                     return None
@@ -908,14 +966,24 @@ class Agent():
                     else:
                         price = max(book['bid'])
                         shares = min(book['bid'][price], 100)
-                return Order(time, action['label'], action['side'], price, shares, uid=self.uid)  # TODO: don't need to give a price here?
+                return Order(timestamp=time,
+                             label=label,
+                             side=side,
+                             price=price,
+                             shares=shares,
+                             uid=self.uid)
         else:
             return None
 
     def market_algo(self, time, side, period):
         """Place a market order every `period` seconds."""
         if round(time, 3) % period == 0:
-            return Order(time, 'market', side, None, 100, uid=self.uid)
+            return Order(timestamp=time,
+                         label='market',
+                         side=side,
+                         price=None,
+                         shares=100,
+                         uid=self.uid)
         else:
             return None
 
@@ -930,14 +998,19 @@ class Agent():
                 price = min(book['ask']) - 1
             else:
                 price = max(book['bid'])
-            return Order(time, 'limit', side, price, 600, uid=self.uid)
+            return Order(timestamp=time,
+                         label='limit',
+                         side=side,
+                         price=price,
+                         shares=600,
+                         uid=self.uid)
         else:
             return None
 
 class MarketMaker(Agent):
 
     def __init__(self, **kwargs):
-        Agent.__init__(self)
+        Agent.__init__(self, **kwargs)
         self.orders = {'bid': None, 'ask': None}
         self.actions = [None,
                         {'label': 'limit', 'side': 'bid'},
@@ -1046,19 +1119,19 @@ class MarketMaker(Agent):
            update when in receives an execute message (add and delete messages are
            handled by `confirm_order`).
 
-        Args
+        Args:
            messages: a list of messages generated by the matching engine.
+
+        Returns:
+            None
         """
 
         if feed == []:
-            pass
-            # if self.verbose:
-                # print('(t={}) Agent received empty message feed; skipping'.format(round(time, 3)))
+            if self.verbose:
+                print('(t={}) Agent received empty message feed; skipping'.format(round(time, 3)))
         for message in feed:
             if message is None:
-                if self.verbose:
-                    print('(t={}) Agent received update MESSAGE: None; skipping'.format(round(time, 3)))
-                pass
+                print('(t={}) Agent received update MESSAGE: None; skipping'.format(round(time, 3)))
             elif message.label == 'add' or message.label == 'delete':
                 print('(t={}) Agent received update MESSAGE: {}'.format(round(time, 3), message))
             elif message.label == 'execute' and message.uid == self.uid:
@@ -1066,8 +1139,8 @@ class MarketMaker(Agent):
                 match = self.orders[message.side]
                 assert match.refno == message.refno, "update received execute with non-matching refno"
                 match.shares -= message.shares
-                assert match.shares >= 0, "Match shares less than zero!"
-                print('>> Updated ORDER {}'.format(match))
+                assert match.shares >= 0, "Match shares less than zero"
+                print('>> Executed {} shares on ORDER {}'.format(message.shares, match))
                 if match.shares == 0:
                     self.cancel_order(match)
                     print('>> Deleted the order')
@@ -1077,47 +1150,54 @@ class MarketMaker(Agent):
                 elif message.side == 'bid':
                     self.score -= (message.shares * message.price) + (message.shares * self.make_fee)
                     self.inventory += message.shares
-                self.data[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
+                self.history[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
 
     def confirm_order(self, time, order, confirm):
         """Confirm agent order was processed, and update self.
 
-        Args
+        Args:
             order: copy of the order submitted by the agent.
-            success: bool indicator. True if the order was processed by matching engine.
             messages: list of messages generated by the matching engine.
+
+        Returns:
+            None
         """
         if confirm == []:
-            pass
-            # if self.verbose:
-                # print('(t={}) Agent received empty confirmation feed; skipping'.format(round(time, 3)))
+            if self.verbose:
+                print('(t={}) Agent received empty confirmation feed; skipping'.format(round(time, 3)))
         for message in confirm:
             if message is None:
                 print('(t={}) Agent received confirmation MESSAGE: None; skipping'.format(round(time, 3)))
             else:
                 print('(t={}) Agent received confirmation MESSAGE: {}'.format(round(time, 3), message))
                 if message.label == 'add':
-                    if order.label != 'replace':
-                        assert order.refno == message.refno, '>> confirm_order receive non-matching reference numbers'
-                        self.add_order(order)
-                        print('>> Added ORDER {}'.format(order))
-                    else:
+                    if order.label == 'replace':
                         order = Order(timestamp=message.timestamp,
                                       label='limit',
                                       side=message.side,
                                       price=message.price,
                                       shares=message.shares,
+                                      refno=message.refno,
                                       uid=message.uid)
-                        order.refno = message.refno
                         self.add_order(order)
                         print('>> Added ORDER {}'.format(order))
+                    else:
+                        assert order.refno == message.refno, '>> confirm_order receive non-matching reference numbers'
+                        self.add_order(order)
+                        print('>> Added ORDER {}'.format(order))
+                elif message.label == 'delete':
+                    assert order.refno == message.refno, ">> confirm_order receive non-matching refno"
+                    match = self.orders[message.side]
+                    assert match.refno == message.refno, ">> confirm_order received delete with non-matching refno"
+                    self.cancel_order(match)
+                    print('>> Deleted ORDER {}'.format(match))
                 elif message.label == 'execute':
                     if message.uid == self.uid:
                         match = self.orders[message.side]
                         assert message.refno == match.refno, "confirm_order received own-execute with non-matching reno"
                         match.shares -= message.shares
                         assert match.shares >= 0, "Match shares less than zero!"
-                        print('>> Updated ORDER {}'.format(match))
+                        print('>> Executed {} shares on ORDER {}'.format(message.shares, match))
                         if match.shares == 0:
                             self.cancel_order(match)
                             print('>> Deleted the order')
@@ -1128,13 +1208,7 @@ class MarketMaker(Agent):
                         elif order.side == 'ask':
                             self.score += (message.shares * message.price) - (message.shares * self.take_fee)
                             self.inventory -= message.shares
-                        self.data[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
-                elif message.label == 'delete':
-                    assert order.refno == message.refno, ">> confirm_order receive non-matching refno"
-                    match = self.orders[message.side]
-                    assert match.refno == message.refno, ">> confirm_order received delete with non-matching refno"
-                    self.cancel_order(match)
-                    print('>> Deleted ORDER {}'.format(match))
+                        self.history[message.timestamp] = {'score': self.score, 'inventory': self.inventory}
 
     def cancel_order(self, order):
         assert self.orders[order.side].refno == order.refno, "cancel_order received non-matching refno"
@@ -1263,27 +1337,20 @@ class Environment():
         # Execute action; generate new events
         confirm = []
         if action is not None:
+            print('(t={}) Agent submitted ORDER {}'.format(round(self.t, 3), action))
             if action.label == 'replace':
-                print('(t={}) Agent submitted ORDER {}'.format(round(self.t, 3), action))
-                cancel_order, limit_order = self.book.split_order(action)
-                event = self.to_event(cancel_order)
-                if event is not None:
-                    print('>> Updating book ...'.format(cancel_order))
-                    messages = self.book.update(cancel_order)
-                    if messages is not None:
-                        confirm.extend(messages)
-                        self.cursor += 1  # skip this event next iteration
-                        self.update_events(self.generate_children((self.t, event)))
-                    event = self.to_event(limit_order)
-                    if event is not None:
-                        print('>> Updating book ...'.format(limit_order))
-                        messages = self.book.update(limit_order)
-                        if messages is not None:
-                            confirm.extend(messages)
-                            self.cursor += 1  # skip this event next iteration
-                            self.update_events(self.generate_children((self.t, event)))
+                print('>> Updating book ...'.format(action))
+                messages = self.book.update(action)
+                if messages is not None:  # replace was processed
+                    confirm.extend(messages)
+                    del_event, add_event = self.to_event(action)
+                    if del_event is not None:  # delete order is an event
+                        self.cursor += 1
+                        self.update_events(self.generate_children((self.t, del_event)))
+                    if add_event is not None:  # add order is an event
+                        self.cursor += 1
+                        self.update_events(self.generate_children((self.t, add_event)))
             else:
-                print('(t={}) Agent submitted ORDER {}'.format(round(self.t, 3), action))
                 event = self.to_event(action)
                 if event is not None:
                     # print('(t={}) Agent chose EVENT {}'.format(round(self.t, 3), event))
@@ -1423,41 +1490,36 @@ class Environment():
             elif order.side == 'ask':
                 return 11
         elif order.label == 'replace':
-            return self.to_event(Order(order.timestamp,
-                                       'add',
-                                       order.side,
-                                       order.newPrice,
-                                       order.shares,
-                                       order.uid))  # NOTE: model doesn't include replace orders yet
+            del_order, add_order = self.book.split_order(order)
+            del_event = self.to_event(del_order)
+            add_event = self.to_event(add_order)
+            return (del_event, add_event)
         print("Order did not match any event; returning None")
-        return None
+        if order.label == 'replace':
+            return (None, None)
+        else:
+            return None
 
-def plot(env, agent, pause=False):
-    env.display.plot_events(env.t, (env.originals, env.actions, env.generated))
-    env.display.plot_book((env.book.bids, env.book.asks))
-    env.display.plot_score(agent.data)
-    env.display.plot_inventory(agent.data)
-    env.display.plot_orders(agent.orders)
-    env.display.draw(pause)
 
 # Test (Agent)
-# N = 12
-# lambda0 = 0.05 * np.ones(N)
-# W = 0.1 * np.eye(N)
-# mu = -1.0 * np.ones((N,N))
-# tau = 1.0 * np.ones((N,N))
-# model = NetworkPoisson(N=N, dt_max=1.0, params={'lamb': lambda0, 'weights': W, 'mu': mu, 'tau': tau})
-# agent = Agent(verbose=False)
-# env = Environment(model, verbose=False)
-# time, book, events, done = env.reset()
+N = 12
+lambda0 = 0.05 * np.ones(N)
+W = 0.1 * np.eye(N)
+mu = -1.0 * np.ones((N,N))
+tau = 1.0 * np.ones((N,N))
+model = NetworkPoisson(N=N, dt_max=1.0, params={'lamb': lambda0, 'weights': W, 'mu': mu, 'tau': tau})
+agent = Agent(verbose=False)
+env = Environment(model, verbose=False)
+time, book, events, done = env.reset()
 # plot(env, agent, pause=True)
-# while not done:
-#     action = agent.choose_action(time, book, events)
-#     time, book, events, confirm, messages, done = env.step(action)
-#     result = agent.update(time, action, confirm, messages, done)
-#     # if (action is not None) or (events != []):
-#         # plot(env, agent, pause=True)
-# plot(env, agent)
+while not done:
+    action = agent.choose_action(time, book, events)
+    time, book, events, confirm, messages, done = env.step(action)
+    result = agent.update(time, action, confirm, messages, done)
+    # if (action is not None) or (events != []):
+        # plot(env, agent, pause=True)
+plot(env, agent, pause=True)
+
 
 # Test (Market Maker)
 N = 12
@@ -1476,4 +1538,4 @@ while not done:
     result = agent.update(time, action, confirm, messages, done)
     # if (action is not None) or (events != []):
     #     plot(env, agent, pause=True)
-plot(env, agent)
+plot(env, agent, pause=True)
