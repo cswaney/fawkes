@@ -113,20 +113,19 @@ def plot_bias(lambda0, path):
         plt.xticks(fontsize=8)
 
     plt.subplot(3, 2, 1)
-    plot_pair(lambda0[0,:], lambda0[3,:], 'ADDS, Level 0', [0.01, 0.03])
-    plt.subplot(3, 2, 3)
-    plot_pair(lambda0[1,:], lambda0[4,:], 'ADDS, Level 1', [0, 0.015])
-    plt.subplot(3, 2, 5)
-    plot_pair(lambda0[2,:], lambda0[5,:], 'ADDS, Level 2', [0, 0.01])
+    plot_pair(lambda0[0,:], lambda0[2,:], 'Add message', [0.01, 0.03])
     plt.subplot(3, 2, 2)
-    plot_pair(lambda0[6,:], lambda0[7,:], 'CANCELS, Level 1', [0, 0.01])
+    plot_pair(lambda0[1,:], lambda0[3,:], 'Add message (+)', [0, 0.015])
+    plt.subplot(3, 2, 3)
+    plot_pair(lambda0[4,:], lambda0[6,:], 'Execute message', [0, 0.01])
     plt.subplot(3, 2, 4)
-    plot_pair(lambda0[8,:], lambda0[9,:], 'CANCELS, Level 2', [0, 0.005])
+    plot_pair(lambda0[5,:], lambda0[7,:], 'Execute message (-)', [0, 0.01])
+    plt.subplot(3, 2, 5)
+    plot_pair(lambda0[8,:], lambda0[10,:], 'Delete message', [0, 0.005])
     plt.subplot(3, 2, 6)
-    plot_pair(lambda0[10,:], lambda0[11,:], 'EXECUTES', [0.015, 0.025])
+    plot_pair(lambda0[9,:], lambda0[11,:], 'Delete message (-)', [0.015, 0.025])
     plt.tight_layout()
     plt.savefig(path + 'bias_{}.pdf'.format(name))
-    # plt.show()
     plt.clf()
 
 def plot_self_connections(W, path):
@@ -143,20 +142,19 @@ def plot_self_connections(W, path):
         plt.xlim(xmin=0)
 
     plt.subplot(3, 2, 1)
-    plot_pair(diagonal[0,:], diagonal[3,:], 'ADDS, Level 0', [0.01, 0.03])
-    plt.subplot(3, 2, 3)
-    plot_pair(diagonal[1,:], diagonal[4,:], 'ADDS, Level 1', [0, 0.015])
-    plt.subplot(3, 2, 5)
-    plot_pair(diagonal[2,:], diagonal[5,:], 'ADDS, Level 2', [0, 0.01])
+    plot_pair(diagonal[0,:], diagonal[2,:], 'Add message', [0.01, 0.03])
     plt.subplot(3, 2, 2)
-    plot_pair(diagonal[6,:], diagonal[7,:], 'CANCELS, Level 1', [0, 0.01])
+    plot_pair(diagonal[1,:], diagonal[3,:], 'Add message (+)', [0, 0.015])
+    plt.subplot(3, 2, 3)
+    plot_pair(diagonal[4,:], diagonal[6,:], 'Execute message', [0, 0.01])
     plt.subplot(3, 2, 4)
-    plot_pair(diagonal[8,:], diagonal[9,:], 'CANCELS, Level 2', [0, 0.005])
+    plot_pair(diagonal[5,:], diagonal[7,:], 'Execute message (-)', [0, 0.01])
+    plt.subplot(3, 2, 5)
+    plot_pair(diagonal[8,:], diagonal[10,:], 'Delete message', [0, 0.005])
     plt.subplot(3, 2, 6)
-    plot_pair(diagonal[10,:], diagonal[11,:], 'EXECUTES', [0.015, 0.025])
+    plot_pair(diagonal[9,:], diagonal[11,:], 'Delete message (-)', [0.015, 0.025])
     plt.tight_layout()
-    plt.savefig(path + 'weights_{}.pdf'.format(name))
-    # plt.show()
+    plt.savefig(path + 'diagonal_{}.pdf'.format(name))
     plt.clf()
 
 def plot_weights(W, vrange, path, ext=None, cmap=None):
@@ -169,24 +167,23 @@ def plot_weights(W, vrange, path, ext=None, cmap=None):
     cbar = plt.colorbar(pad=0.02)
     cbar.ax.tick_params(labelsize=8)
     plt.xlabel("Child nodes", labelpad=20, fontsize=8)
-    tick_labels = ['Add 0 (Bid)',
-                   'Add 1 (Bid)',
-                   'Add 2 (Bid)',
-                   'Add 0 (Ask)',
-                   'Add 1 (Ask)',
-                   'Add 2 (Ask)',
-                   'Delete 1 (Bid)',
-                   'Delete 2 (Bid)',
-                   'Delete 1 (Ask)',
-                   'Delete 2 (Ask)',
-                   'Execute (Bid)',
-                   'Execute (Ask)']
+    tick_labels = ['Add (bid)',
+                   'Add (bid+)',
+                   'Add (ask)',
+                   'Add (ask-)',
+                   'Execute (bid)',
+                   'Execute (bid-)',
+                   'Execute (ask)',
+                   'Execute (ask+)',
+                   'Delete (bid)',
+                   'Delete (bid-)',
+                   'Delete (ask-)',
+                   'Delete (ask+)']
     plt.xticks(np.arange(0, 12), tick_labels, rotation=90, fontsize=8)
     plt.ylabel("Parent nodes", labelpad=20, fontsize=8)
     plt.yticks(np.arange(0, 12), tick_labels, fontsize=8)
     plt.tight_layout()
     plt.savefig(path + 'weights{}_{}.pdf'.format(ext, name))
-    # plt.show()
     plt.clf()
 
 def logit_normal(dt, mu, tau, dt_max):

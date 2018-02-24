@@ -18,6 +18,114 @@ def normal_gamma(size, mu, kappa, alpha, beta):
     X = np.random.normal(mu, 1 / (kappa * T))
     return X, T
 
+class HomogeneousPoisson():
+    """N-dimensional homogeneous Poisson model.
+
+    N: number of Poisson processes.
+    params: a dict of parameter values:
+        - lamb: vector of background rates.
+    hypers: a dict of hyperparamter values:
+        - alpha_0: background hyper.
+        - beta_0: background hyper.
+    """
+
+    def __init__(self, N, dt_max, params=None, hypers=None):
+
+        # Basic
+        self.N = N
+        self.dt_max = dt_max
+
+        # Parameters
+        if params is not None:  # Set parameters from `params`.
+            self.lambda0 = params['lambda0']
+        else:  # Set parameters to default values.
+            self.lambda0 = np.ones(self.N)
+
+        # Hyperparameters
+        if hypers is not None:  # Set hyperparamters from `hypers`.
+            # assert hypers have the correct shape.
+            pass
+        else:  # Set hyperparamters to default values.
+            # Bias
+            self.alpha_0 = 1
+            self.beta_0 = 1
+
+        # Priors
+        self.bias_model = priors.GammaBias(self.N, self.alpha_0, self.beta_0)
+        self.model = priors.HomogeneousPoisson(self.N, self.alpha_0, self.beta_0)
+
+    def init_parameters(self):
+        """Sample the model parameters from the prior distribution."""
+        print("Sampling model parameters from priors.")
+        self.lambda0 = np.random.gamma(self.alpha_0, 1 / self.beta_0, size=(self.N,))
+        print("Model parameters have been reset.")
+
+    def generate_data(self, T):
+        """Basic data generation based."""
+
+        events = []
+        nodes = []
+        background_events = [[] for n in range(self.N)]
+
+        for n in range(self.N):
+            c = np.random.uniform(low=0, high=T, size=np.random.poisson(T * self.lambda0[n]))
+            events.extend(c)
+            nodes.extend([n] * len(c))
+        idx = np.argsort(events)
+        return np.array(events)[idx], np.array(nodes)[idx]
+
+    def plot_data(self, data):
+        """Plot intensity with events by node."""
+        times, nodes = data
+        T = np.ceil(np.max(times))
+        grid = np.linspace(0, T, 1000)
+        for n in np.unique(nodes):
+            plt.plot(grid, self.lambda0[n] * np.ones(len(grid)), linestyle='dashed', alpha=0.5)
+            plt.scatter(times[nodes==n], [self.lambda0[n]] * len(times[nodes==n]))
+            plt.ylim([0, np.max(self.lambda0) + 0.5])
+            plt.xlim([0, T])
+        plt.show()
+
+    def compute_likelihood(self, data, T, lambda0, log=True):
+        """Compute the likelihood of event-time data, p(s | theta).
+
+        data: list of form [timestamps, classes].
+        log: compute log likelihood (default: True)
+
+        """
+
+        times, nodes = data
+        _, cnts = np.unique(nodes, return_counts=True)
+        return -T * lambda0.sum() + np.sum(np.log(lambda0) * cnts)
+
+    def compute_pred_likelihood(self, data, T, size, log=True):
+        """Compute approximate predictive likelihood of event-time data, p(s_test | s_train).
+
+        data: list of form [timestamps, classes].
+        log: compute log likelihood (default: True)
+
+        """
+
+        lambda0_ = self.sample(data, T, size=size)
+        mean = 0.0
+        for i in range(size):
+            mean += self.compute_likelihood(data, T, lambda0_[i,:])
+        return mean / size
+
+    def sample(self, data, T, size=1):
+        """Sample the posterior distribution.
+
+            Performs exact sampling if possible. Otherwise, performs Gibbs sampling.
+
+        """
+
+        print("Sampling posterior...")
+        start = time.time()
+        bias = self.model.sample(data, T, size=size)
+        stop = time.time()
+        print("Performed {:d} sampling steps in {:.3f} seconds.".format(size, stop - start))
+        return bias
+
 class NetworkPoisson():
     """N-dimensional Bayesian network model.
 
@@ -97,22 +205,22 @@ class NetworkPoisson():
             pass
         else:  # Set hyperparamters to default values.
             # Bias
-            self.alpha_0 = 1
-            self.beta_0 = 1
+            self.alpha_0 = 1.
+            self.beta_0 = 1.
 
             # Weights
-            self.kappa = 1
-            self.nu = np.ones((self.N, self.N))  # N x N
+            self.kappa = 1.
+            self.nu = 1. * np.ones((self.N, self.N))  # N x N
 
             # Impulse
-            self.mu_mu = 0
-            self.kappa_mu = 1
-            self.alpha_tau = 1
-            self.beta_tau = 1
+            self.mu_mu = 0.
+            self.kappa_mu = 1.
+            self.alpha_tau = 1.
+            self.beta_tau = 1.
 
         # Impulse
         def logit_normal(dt, mu=self.mu, tau=self.tau):
-            """mu and tau can be scalar or matirx/vector"""
+            """mu and tau can be scalar or matirx/vector; dt is an element from an np.array."""
             # if dt < self.dt_max:
             #     Z = dt * (self.dt_max - dt) / dt_max * (tau / (2 * np.pi)) ** (-0.5)
             #     x = dt / self.dt_max
@@ -153,32 +261,43 @@ class NetworkPoisson():
                                            self.alpha_tau,
                                            self.beta_tau)
 
+    # TODO: use self.model.prior() instead?
     def init_parameters(self):
         """Sample the model parameters from prior distributions."""
         print("Sampling model parameters from priors.")
-        self.lamb = np.random.gamma(self.alpha0, 1 / self.beta0)
+        self.lamb = np.random.gamma(self.alpha_0, 1 / self.beta_0, size=(self.N,))
         self.W = np.random.gamma(self.kappa, 1 / self.nu)
-        self.mu, self.tau = normal_gamma(self.mu_mu,
+        self.mu, self.tau = normal_gamma((self.N, self.N),
+                                         self.mu_mu,
                                          self.kappa_mu,
                                          self.alpha_tau,
                                          self.beta_tau)
         print("Model parameters have been reset.")
 
-    def check_stability(self):
-        """Check that the weight matrix is stable."""
+    def check_stability(self, A=None, W=None, return_value=False):
+        """Check that the weight matrix is stable; returns the answers.
+
+            return_value: also return the maximum eigenvalue.
+
+        """
+
+        if A is None:
+            A = self.A
+        if W is None:
+            W = self.W
+
         if self.N < 100:
-            eigs = np.linalg.eigvals(self.A * self.W)
+            eigs = np.linalg.eigvals(A * W)
             maxeig = np.amax(np.real(eigs))
         else:
             from scipy.sparse.linalg import eigs
-            maxeig = eigs(self.W, k=1)[0]
+            maxeig = eigs(A * W, k=1)[0]
 
-        print("Max eigenvalue: {}".format(maxeig))
+        print("Max eigenvalue: {:.2f} (stable={})".format(maxeig, maxeig < 1.0))
 
-        if maxeig < 1.0:
-            return True
-        else:
-            return False
+        if return_value:
+            return maxeig < 1., maxeig
+        return maxeig < 1.
 
     def generate_data(self, T):
         """Data generation based on the superposition principle (Linderman, 2015)."""
@@ -315,17 +434,12 @@ class NetworkPoisson():
             plt.ylim([0, np.max(f_times) + 1])
             plt.xlim([0, T])
         plt.show()
-        plt.clf()
+        # plt.clf()
 
     def plot_impulse(self, mu=None, tau=None):
 
-            if mu is None:
-                mu = self.mu[0, 0]
-            if tau is None:
-                tau = self.tau[0, 0]
-
             """mu and tau can be scalar or matirx/vector"""
-            def impulse(dt):
+            def impulse(dt, mu, tau):
                 out = np.zeros(dt.shape)
                 dt_ = dt[ (dt > 0) & (dt < self.dt_max) ]
                 Z = dt_ * (self.dt_max - dt_) / self.dt_max * (tau / (2 * np.pi)) ** (-0.5)
@@ -334,14 +448,23 @@ class NetworkPoisson():
                 out[ (dt > 0 ) & (dt < self.dt_max) ] = (1 / Z) * np.exp( -tau / 2 * (s - mu) ** 2 )
                 return out
 
-            plt.plot(np.linspace(0, self.dt_max, 100), impulse(np.linspace(0, self.dt_max, 100)))
+            grid = np.linspace(0, self.dt_max, 100)
+            plt.plot(grid, impulse(grid, self.mu[0,0], self.tau[0,0]))
+            if (mu is not None) and (tau is not None):
+                plt.plot(grid, impulse(grid, mu, tau))
             plt.title("Impulse Response: mu={:.2f}, tau={:.2f}".format(mu, tau))
+            plt.legend(['True', 'Estimate'])
             plt.show()
-            plt.close()
 
     # TODO: vectorize and/or parallelize.
-    def compute_intensity(self, data, t):
+    def compute_intensity(self, data, t, theta=None):
+        """Compute the intensity using events up to time t."""
         times, nodes = data
+        if theta is None:
+            lamb, W, mu, tau = self.lamb, self.W, self.mu, self.tau
+        else:
+            lamb, W, mu, tau = theta
+
         # Only use past events.
         nodes = nodes[ times < t ]
         times = times[ times < t ]
@@ -354,7 +477,7 @@ class NetworkPoisson():
         for i in range(len(diffs)):
             m = nodes[i]
             dt = diffs[i]
-            lamb += self.W[m,:] * self.impulse(dt)[m,:]
+            lamb += self.W[m,:] * self.impulse(dt, mu=mu, tau=tau)[m,:]
         return lamb
 
     # TODO: check
@@ -380,15 +503,45 @@ class NetworkPoisson():
                 lamb += W_nm * self.impulse(dt, mu_nm, tau_nm)
         return lamb
 
-    # TODO
-    def compute_likelihood(self, data):
-        """Compute the log likelihood of event-time data.
+    def compute_likelihood(self, data, T, theta=None):
+        """Compute the log likelihood of event-time data, p(s | theta).
+
+            Approximates the integrals in the first term by W_m,n.
 
         data: list of form [timestamps, classes].
 
         """
 
-        raise NotImplementedError
+        times, nodes = data
+        if theta is None:
+            lambda0 = self.lamb
+            W = self.W
+            mu = self.mu
+            tau = self.tau
+        else:
+            lambda0, W, mu, tau = theta
+
+        ll_a = T * lambda0.sum() + W[nodes,:].sum()
+        I = np.array([self.compute_intensity(data, t, theta) for t in times])  # intensity at each (event, node)
+        ll_b = np.sum(np.log(np.concatenate([I[nodes == n, n] for n in range(self.N)])))
+        # ll_b = np.sum(np.log(I))
+        return -ll_a + ll_b
+
+    def compute_pred_likelihood(self, data, T, sample):
+        """Compute the predictive likelihood of event-time data, p(s_test | s_train).
+
+            Approximated by MCMC as ll = (1/L) * sum( p( s_test | theta^(l) ) )
+
+        data: list of form [timestamps, classes].
+
+        """
+
+        lambda0, W, mu, tau = sample
+        mean = 0
+        for i in range(len(sample)):
+            theta = (lambda0[:,i], W[:,:,i], mu[:,:,i], tau[:,:,i])
+            mean += self.compute_likelihood(data, T, theta)
+        return mean / len(sample)
 
     # TODO
     def fit_parents(self, data):
@@ -678,7 +831,7 @@ class DiscreteNetworkPoisson():
         else:
             plt.legend(np.arange(1, B + 1).tolist(), loc='upper right')
         plt.show()
-        plt.clf()
+        # plt.clf()
 
     def plot_data(self, S, Lambda, events=True, intensity=True):
         """
@@ -696,7 +849,7 @@ class DiscreteNetworkPoisson():
             for i in range(self.N):
                 plt.plot(np.arange(T), Lambda[:, i])
         plt.show()
-        plt.clf()
+        # plt.clf()
 
     def generate_data(self, T):
         S = np.zeros((T, self.N))

@@ -205,6 +205,41 @@ class NormalGammaImpulse():
                 Tau[n,m] = tau
         return Mu, Tau
 
+class HomogeneousPoisson():
+
+    def __init__(self, N, alpha_0, beta_0):
+        self.N = N
+        self.alpha_0 = alpha_0
+        self.beta_0 = beta_0
+
+    def prior(self, size=1):
+        """Sample background prior."""
+        if size == 1:
+            lamb = np.random.gamma(shape=self.alpha_0, scale=(1 / self.beta_0), size=self.N)
+        else:
+            lamb = np.random.gamma(shape=self.alpha_0, scale=(1 / self.beta_0), size=(size, self.N))
+
+    def sample(self, data, T, size=1):
+        """Generate `size` draws from the posterior distribution."""
+
+        start = time.time()
+        times, nodes = data
+
+        # sufficient statistic
+        M_0n = np.array([len(nodes[nodes==i]) for i in range(self.N)])
+        assert M_0n.sum() == len(times), "Event count error"
+
+        # calculate posterior parameters
+        alpha_0 = self.alpha_0 + M_0n
+        beta_0 = self.beta_0 + T
+
+        # sample posteriors
+        lamb = gamma(alpha_0, (1 / beta_0), size=(size,self.N))  # N x 1 parameters
+        stop = time.time()
+        if FLAGS_VERBOSE:
+            print('Sampled parameters in {} seconds.'.format(stop - start))
+        return lamb
+
 class NetworkPoisson():
 
     def __init__(self, N, alpha_0, beta_0, A, kappa, nu, mu_mu, kappa_mu,
@@ -223,18 +258,21 @@ class NetworkPoisson():
     def prior(self, size=1):
         # sample bias
         if size == 1:
-            lamb = np.random.gamma(shape=self.alpha_0, scale=(1 / self.beta_0), size=self.N)
+            lamb = np.random.gamma(shape=self.alpha_0,
+                                   scale=(1 / self.beta_0),
+                                   size=self.N)
         else:
-            lamb = np.random.gamma(shape=self.alpha_0, scale=(1 / self.beta_0), size=(size, self.N))
+            lamb = np.random.gamma(shape=self.alpha_0,
+                                   scale=(1 / self.beta_0),
+                                   size=(size, self.N))
 
         # sample weights
         if size == 1:
-            W = self.A * np.random.gamma(shape=self.kappa,
-                                           scale=(1 / self.nu))
+            W = self.A * np.random.gamma(shape=self.kappa, scale=(1 / self.nu))
         else:
             W = self.A * np.random.gamma(shape=self.kappa,
-                                           scale=(1 / self.nu),
-                                           size=(size, self.N, self.N))
+                                         scale=(1 / self.nu),
+                                         size=(size, self.N, self.N))
 
         # sample impulse
         if size == 1:
@@ -471,8 +509,6 @@ class NetworkPoisson():
             print('Sampled parameters in {} seconds.'.format(stop - start))
         return lamb, W, mu, tau
 
-
-# Discrete-Time Models
 class DiscreteNetworkPoisson():
 
     def __init__(self, N, B, dt, alpha_0, beta_0, kappa, nu, gamma):
