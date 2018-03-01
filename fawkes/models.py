@@ -29,14 +29,13 @@ class HomogeneousPoisson():
         - beta_0: background hyper.
     """
 
-    def __init__(self, N, dt_max, params=None, hypers=None):
+    def __init__(self, N, lambda0=None, hypers=None):
 
         # Basic
         self.N = N
-        self.dt_max = dt_max
 
         # Parameters
-        if params is not None:  # Set parameters from `params`.
+        if lambda0 is not None:  # Set parameters from `params`.
             self.lambda0 = params['lambda0']
         else:  # Set parameters to default values.
             self.lambda0 = np.ones(self.N)
@@ -46,7 +45,6 @@ class HomogeneousPoisson():
             # assert hypers have the correct shape.
             pass
         else:  # Set hyperparamters to default values.
-            # Bias
             self.alpha_0 = 1
             self.beta_0 = 1
 
@@ -86,7 +84,7 @@ class HomogeneousPoisson():
             plt.xlim([0, T])
         plt.show()
 
-    def compute_likelihood(self, data, T, lambda0, log=True):
+    def compute_likelihood(self, data, T, lambda0=None, log=True, size=None):
         """Compute the likelihood of event-time data, p(s | theta).
 
         data: list of form [timestamps, classes].
@@ -94,9 +92,36 @@ class HomogeneousPoisson():
 
         """
 
+        if lambda0 is None:
+            lambda0 = self.lambda0
+
         times, nodes = data
-        _, cnts = np.unique(nodes, return_counts=True)
-        return -T * lambda0.sum() + np.sum(np.log(lambda0) * cnts)
+        M = len(times)
+        if (size is not None) and (M < size):
+            print('Insufficient event data (n={}); returning None'.format(nobs))
+            return None
+        elif (size is not None):
+            idx = np.random.randint(low=0, high=M-size)
+            times = times[idx:idx + size]
+            nodes = nodes[idx:idx + size]
+            t0 = times[0]
+            tN = times[-1]
+            T = tN - t0
+            times = times - t0
+        # Likelihood computation
+        idx, cnts = np.unique(nodes, return_counts=True)
+        idx_list = list(idx)
+        cnts_list = list(cnts)
+        while idx_list[-1] != self.N - 1:
+            idx_list.append(idx_list[-1] + 1)
+            cnts_list.append(0)
+        for i in range(self.N):
+            if idx_list[i] != i:
+                idx_list.insert(i,i)
+                cnts_list.insert(i,0)
+        cnts = np.array(cnts_list)
+        ll = -T * lambda0.sum() + np.sum(np.log(lambda0) * cnts)
+        return ll, T
 
     def compute_pred_likelihood(self, data, T, size, log=True):
         """Compute approximate predictive likelihood of event-time data, p(s_test | s_train).
@@ -119,11 +144,11 @@ class HomogeneousPoisson():
 
         """
 
-        print("Sampling posterior...")
+        # print("Sampling posterior...")
         start = time.time()
         bias = self.model.sample(data, T, size=size)
         stop = time.time()
-        print("Performed {:d} sampling steps in {:.3f} seconds.".format(size, stop - start))
+        # print("Performed {:d} sampling steps in {:.3f} seconds.".format(size, stop - start))
         return bias
 
 class NetworkPoisson():
@@ -503,16 +528,15 @@ class NetworkPoisson():
                 lamb += W_nm * self.impulse(dt, mu_nm, tau_nm)
         return lamb
 
-    def compute_likelihood(self, data, T, theta=None):
+    def compute_likelihood(self, data, T, theta=None, size=None):
         """Compute the log likelihood of event-time data, p(s | theta).
 
-            Approximates the integrals in the first term by W_m,n.
+            Note: approximates the integrals in the first term by W_m,n.
 
         data: list of form [timestamps, classes].
 
         """
 
-        times, nodes = data
         if theta is None:
             lambda0 = self.lamb
             W = self.W
@@ -521,11 +545,25 @@ class NetworkPoisson():
         else:
             lambda0, W, mu, tau = theta
 
+        times, nodes = data
+        M = len(times)
+        if (size is not None) and (M < size):
+            print('Insufficient event data (n={}); returning None'.format(nobs))
+            return None
+        elif (size is not None):
+            idx = np.random.randint(low=0, high=M-size)
+            times = times[idx:idx + size]
+            nodes = nodes[idx:idx + size]
+            t0 = times[0]
+            tN = times[-1]
+            T = tN - t0
+            times = times - t0
+        # Likelihood computation
         ll_a = T * lambda0.sum() + W[nodes,:].sum()
         I = np.array([self.compute_intensity(data, t, theta) for t in times])  # intensity at each (event, node)
         ll_b = np.sum(np.log(np.concatenate([I[nodes == n, n] for n in range(self.N)])))
         # ll_b = np.sum(np.log(I))
-        return -ll_a + ll_b
+        return -ll_a + ll_b, T
 
     def compute_pred_likelihood(self, data, T, sample):
         """Compute the predictive likelihood of event-time data, p(s_test | s_train).
