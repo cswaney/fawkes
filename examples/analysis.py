@@ -1,4 +1,4 @@
-from fawkes.models import NetworkPoisson
+from fawkes.models import NetworkPoisson, HomogeneousPoisson
 from scipy.stats import gaussian_kde
 import matplotlib.pyplot as plt
 import numpy as np
@@ -182,8 +182,59 @@ def check_stability(lambda0, W, mu, tau, dt_max):
     return model.check_stability(return_value=True)
 
 # 4. Likelihood
-def compute_likelihood(data, lambda0, W, mu, tau):
-    pass
+def import_events(name, date, size=None, t0=37800, tN=54000):
+    with h5.File('/Volumes/datasets/ITCH/events/large2007.hdf5', 'r') as hdf:
+        try:
+            df = pd.DataFrame(hdf['{}/{}'.format(name, date)][:], columns=('timestamp', 'event'))
+        except:
+            print('Unable to find event data; skipping\n')
+            return None
+        df = df[ (df['timestamp'] > t0) & (df['timestamp'] < tN) ]
+        df['event'] = df['event'].astype('int')
+        df['timestamp'] = df['timestamp'] - t0
+        dups = df.duplicated(keep='last')
+        df = df[~dups].reset_index(drop=True)
+        nobs = len(df)
+        if (size is not None) and (nobs < size):
+            print('Insufficient event data (n={}); skipping\n'.format(nobs))
+            return None
+        elif (size is not None):
+            idx = np.random.randint(low=0, high=nobs-size)
+            df = df.iloc[idx:idx + size,:]
+            df = df.reset_index(drop=True)
+            t0 = df['timestamp'][0]
+            tN = df['timestamp'][size - 1]
+            df['timestamp'] = df['timestamp'] - t0
+        events = (df['timestamp'].values, df['event'].values)
+        return events, tN - t0
+
+def compute_likelihood(data, T, lambda0, W, mu, tau, size=1000):
+
+    N, _ = W.shape
+    if method == 'network':
+        model = NetworkPoisson(N=N, dt_max=dt_max)
+        model.lamb = lambda0
+        model.W = W
+        model.mu = mu
+        model.tau = tau
+    elif method == 'homogeneous':
+        model = HomogeneousPoisson(N=N, dt_max=dt_max)
+
+    times, nodes = data
+    nobs = len(times)
+    if (size is not None) and (nobs < size):
+        print('Insufficient event data (n={}); skipping\n'.format(nobs))
+        return None
+    elif (size is not None):
+        idx = np.random.randint(low=0, high=nobs-size)
+        times = times[idx:idx + size]
+        nodes = nodes[idx:idx + size]
+        t0 = times[0]
+        tN = times[-1]
+        T = tN - t0
+        times = times - t0
+        events = (times, nodes)
+    return model.compute_likelihood(events, T), T
 
 # Script
 read_path = '/Volumes/datasets/ITCH/samples/large2007_dt_max=60.hdf5'
