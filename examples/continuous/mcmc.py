@@ -7,13 +7,7 @@ import matplotlib.pyplot as plt
 import time
 import sys
 
-"""
-Estimate the continuous-time Network Poisson model using Nasdaq data.
-
-1. Import event data.
-2. Iterate Gibbs sampling algorithm.
-3. Save samples to HDF5.
-"""
+"""Estimates the continuous-time Network Poisson model for specified group of stocks."""
 
 N = 12
 t0 = 34200 + 3600

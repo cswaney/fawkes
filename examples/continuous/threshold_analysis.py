@@ -52,13 +52,22 @@ def import_events(name, date, size=None, t0=37800, tN=54000):
         events = (df['timestamp'].values, df['event'].values)
         return events, tN - t0
 
-def get_estimates(sample, method='median'):
+def get_estimates(sample, method='median', threshold=None, log=False, norm=False):
     lambda0, W, mu, tau = sample
     if method == 'median':
         lambda0 = np.median(lambda0, axis=1)
         W = np.median(W, axis=2)
         mu = np.median(mu, axis=2)
         tau = np.median(tau, axis=2)
+    if threshold is not None:
+        if log and norm:
+            W[np.log(W / lambda0) < threshold] = 0
+        elif log:
+            W[np.log(W) < threshold] = 0
+        elif norm:
+            W[(W / lambda0) < threshold] = 0
+        else:
+            W[W < threshold] = 0
     return lambda0, W, mu, tau
 
 def sample_events(events, size):
@@ -77,8 +86,13 @@ def sample_events(events, size):
     return (times, nodes), T
 
 
-
-date = '072413'
+# name = 'A'
+# name = 'LLY'
+name = 'SIG'
+mcmc_date = '072413'  # test: '072513'
+event_date = '072513'
+norm = False
+log = True
 L = 100  # simulation size
 M = 180  # sample size
 N = 12  # network size
@@ -87,52 +101,38 @@ model_net = NetworkPoisson(N=N, dt_max=dt_max)
 model_hom = HomogeneousPoisson(N=N)
 df = []
 read_path = '/Volumes/datasets/ITCH/samples/large2007_dt_max=60.hdf5'
-write_path = '/Users/colinswaney/Desktop/likelihood_date={}_{}.txt'.format(date, M)
+write_path = '/Users/colinswaney/Desktop/threshold_name={}_date={}_M={}_norm={}.txt'.format(name, event_date, M, norm)
 with h5.File(read_path, 'r') as hdf:
     start = time.time()
-    for name in hdf.keys():
-        try:
-            lambda0, W, mu, tau = import_samples(read_path, name, date)
-        except:
-            print('Unable to import samples; skipping')
-        lambda0_, W_, mu_, tau_ = get_estimates((lambda0, W, mu, tau))
-        events, T = import_events(name, date)
+    try:
+        lambda0, W, mu, tau = import_samples(read_path, name, mcmc_date)
+    except:
+        print('Unable to import samples; skipping')
+    for threshold in np.arange(-8, 1, .5):
+        lambda0_, W_, mu_, tau_ = get_estimates((lambda0, W, mu, tau),
+                                                threshold=threshold,
+                                                log=log,
+                                                norm=norm)
+        events, T = import_events(name, event_date)
         model_net.lamb = lambda0_
         model_net.W = W_
         model_net.mu = mu_
         model_net.tau = tau_
         model_hom.lambda0 = np.median(model_hom.sample(events, T, size=2500), axis=0)
-        print('Computing likelihood on random subsamples (M={})...'.format(M))
+        print('Computing likelihood on random subsamples (threshold={}, M={})...'.format(threshold, M))
         start_sub = time.time()
-        for i in range(L):
+        for i in np.arange(L):
             sample, T = sample_events(events, size=M)
             ll_net, _ = model_net.compute_likelihood(sample, T)
             ll_hom, _ = model_hom.compute_likelihood(sample, T)
-            bits = (ll_net - ll_hom) / T
-            df.append([name, ll_net, ll_hom, bits, T])
-            print('[{:d}] ll_net={:.2f}, ll_hom={:.2f}, bits/sec={:.2f} (T={:.2f})'.format(i, ll_net, ll_hom, bits, T))
+            bits = (ll_net - ll_hom) / M
+            df.append([name, threshold, ll_net, ll_hom, bits, T])
+            print('[{:d}] ll_net={:.2f}, ll_hom={:.2f}, bits/spike={:.2f} (T={:.2f})'.format(i, ll_net, ll_hom, bits, T))
         stop_sub = time.time()
         print('Done! Elapsed time: {:.2f} sec'.format(stop_sub - start_sub))
-df = pd.DataFrame(df, columns=['name', 'll_net', 'll_hom', 'bits', 'T'])
+df = pd.DataFrame(df, columns=['name', 'threshold', 'll_net', 'll_hom', 'bits', 'T'])
 df.to_csv(write_path)
 stop = time.time()
 print('Average differences (bits/sec): {}'.format(df['bits'].mean()))
 print('Average sample: {}'.format(df['T'].mean()))
 print('Elapsed time: {} sec'.format(stop - start))
-
-# Analysis
-df['diff'] = df['ll_net'] - df['ll_hom']
-df.median(axis=0)
-df.mean(axis=0)
-
-grouped = df.groupby('name')
-medians = grouped.median().reset_index()
-
-
-crsp = pd.read_csv('/Users/colinswaney/Desktop/crsp.txt')
-crsp_grps = crsp.groupby('TICKER')
-crsp_means = crsp_grps.mean()[['PRC', 'VOL', 'SHROUT']].reset_index()
-crsp_means.columns = ['name', 'price', 'volume', 'shares']
-
-plt.scatter(np.log(combined['price']), combined['diff']/M)
-plt.scatter(np.log(combined['volume']), combined['diff']/M)

@@ -888,7 +888,6 @@ class Simulator():
         # self.display.plot_orders(t, self.agent.orders)
         self.display.draw(pause)
 
-# Example
 def random_limit_order():
     timestamp = -1
     label = 'limit'
@@ -925,12 +924,6 @@ lambda0 = 0.4 * np.ones(N)
 W = 0.1 * np.eye(N)
 mu = -1.0 * np.ones((N,N))
 tau = 1.0 * np.ones((N,N))
-
-# N = 2
-# lambda0 = np.array([1.0, 1.0])
-# W = np.array([[0.5, 0.1], [0.1, 0.5]])
-# mu = -1.0 * np.ones((N,N))
-# tau = 1.0 * np.ones((N,N))
 
 model = NetworkPoisson(N=N, dt_max=1.0, params={'lamb': lambda0, 'weights': W, 'mu': mu, 'tau': tau})
 agent = Agent([None, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
